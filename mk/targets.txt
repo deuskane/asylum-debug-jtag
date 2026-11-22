@@ -1,7 +1,18 @@
 default                   : Default Target
 lint_ghdl                 : Lint with GHDL (-Wall analysis and elaboration of jtag_wrapper)
+lint_ghdl_synth_bitbang   : Synthesis check of jtag_bitbang (remote_bitbang JTAG master)
 lint_ghdl_synth_default   : Synthesis check of jtag_wrapper, default generics (5-bit IR, TRST, TDRs of 16 (in), 8 (out) and 8 (in/out) bits, 3 functions on 4 pads)
 lint_ghdl_synth_min       : Synthesis check of jtag_wrapper, smallest configuration (3-bit IR, no TRST, 1-bit TDRs, 2 functions on 1 pad)
+sim_bitbang               : Simulation of jtag_bitbang with jtag_tap and a TDR - build only (scenarios of TESTS_LIST)
+sim_bitbang_backpressure  : Simulation of jtag_bitbang - m_axis back-pressure, s_axis held while an answer is pending
+sim_bitbang_blink         : Simulation of jtag_bitbang - blink commands 'B' and 'b'
+sim_bitbang_dr_scan       : Simulation of jtag_bitbang - IR scan and DR scans of a jtag_tdr_inout
+sim_bitbang_idcode        : Simulation of jtag_bitbang - IDCODE read through the TAP (TMS reset, IR scans)
+sim_bitbang_ignored       : Simulation of jtag_bitbang - the 241 other bytes are ignored
+sim_bitbang_read          : Simulation of jtag_bitbang - read command 'R', answers '0' or '1' (TDO, pull-up when not driven)
+sim_bitbang_reset         : Simulation of jtag_bitbang - reset commands 'r' 's' 't' 'u', TRST and SRST
+sim_bitbang_uart          : Simulation of jtag_bitbang - through uart_rx_axis and uart_tx_axis with the UVVM UART BFM (IDCODE, DR scan, TRST, SRST, LED)
+sim_bitbang_write         : Simulation of jtag_bitbang - write commands '0' to '7', TCK, TMS and TDI
 sim_jtag                  : Simulation of jtag_tap and the TDRs (5-bit IR, TRST, TDRs of 8 (in), 12 (out) and 16 (in/out) bits) - build only (scenarios of TESTS_LIST)
 sim_jtag_bypass           : Simulation of jtag_tap and the TDRs - BYPASS, one bit delay, captured to 0
 sim_jtag_idcode           : Simulation of jtag_tap and the TDRs - IDCODE after reset and by IR scan, 32-bit register
@@ -17,11 +28,13 @@ sim_jtag_tdr_out          : Simulation of jtag_tap and the TDRs - jtag_tdr_out, 
 sim_jtag_tdr_reset        : Simulation of jtag_tap and the TDRs - reset values of the TDRs (power-on reset, TRST, Test-Logic-Reset)
 sim_jtag_unclaimed        : Simulation of jtag_tap and the TDRs - unclaimed opcodes (all zeros included) select BYPASS
 sim_jtag_user             : Simulation of jtag_tap and the TDRs - user instructions, TDO from user_tdo_i (TDR of the opcode)
+sim_openocd               : Co-simulation of jtag_bitbang with OpenOCD (remote_bitbang over TCP) - IDCODE, DR scans, TRST, SRST
 sim_pad_mux               : Simulation of jtag_pad_mux (3 functions on 4 pads) - build only (scenarios of TESTS_LIST)
 sim_pad_mux_5x2           : Simulation of jtag_pad_mux, 5 functions on 2 pads, every scenario
 sim_pad_mux_default       : Simulation of jtag_pad_mux - unselected functions see PAD_IN_DEFAULT
 sim_pad_mux_output_enable : Simulation of jtag_pad_mux - pad output enables from the selected function only
 sim_pad_mux_select        : Simulation of jtag_pad_mux - pads driven by the selected function, which sees the pad inputs
+syn_bitbang               : Synthesis (Artix-7, sky130) of jtag_bitbang (remote_bitbang JTAG master)
 syn_default               : Synthesis (Artix-7, sky130) of jtag_wrapper, default generics (5-bit IR, TRST, TDRs of 16 (in), 8 (out) and 8 (in/out) bits, 3 functions on 4 pads)
 syn_min                   : Synthesis (Artix-7, sky130) of jtag_wrapper, smallest configuration (3-bit IR, no TRST, 1-bit TDRs, 2 functions on 1 pad)
 
