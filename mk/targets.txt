@@ -7,6 +7,7 @@ sim_jtag_bypass           : Simulation of jtag_tap and the TDRs - BYPASS, one bi
 sim_jtag_idcode           : Simulation of jtag_tap and the TDRs - IDCODE after reset and by IR scan, 32-bit register
 sim_jtag_ir8              : Simulation of jtag_tap and the TDRs, 8-bit IR, no TRST, TDRs of 1 (in), 33 (out) and 5 (in/out) bits, every scenario
 sim_jtag_ir_capture       : Simulation of jtag_tap and the TDRs - Capture-IR loads 0...01, ir_o changes in Update-IR only
+sim_jtag_pause            : Simulation of jtag_tap and the TDRs - Pause-IR, Pause-DR, Exit2 and zero-length scans, every TAP transition
 sim_jtag_reset_tms        : Simulation of jtag_tap and the TDRs - reset by TMS only, IDCODE selected
 sim_jtag_reset_trst       : Simulation of jtag_tap and the TDRs - TRST pulse alone, Test-Logic-Reset and IDCODE selected
 sim_jtag_tdo_en           : Simulation of jtag_tap and the TDRs - tdo_en high in Shift-IR and Shift-DR only
@@ -15,7 +16,7 @@ sim_jtag_tdr_inout        : Simulation of jtag_tap and the TDRs - jtag_tdr_inout
 sim_jtag_tdr_out          : Simulation of jtag_tap and the TDRs - jtag_tdr_out, update of data_o, held during the scans and when not selected
 sim_jtag_tdr_reset        : Simulation of jtag_tap and the TDRs - reset values of the TDRs (power-on reset, TRST, Test-Logic-Reset)
 sim_jtag_unclaimed        : Simulation of jtag_tap and the TDRs - unclaimed opcodes (all zeros included) select BYPASS
-sim_jtag_user             : Simulation of jtag_tap and the TDRs - user instruction, TDO from user_tdo_i
+sim_jtag_user             : Simulation of jtag_tap and the TDRs - user instructions, TDO from user_tdo_i (TDR of the opcode)
 sim_pad_mux               : Simulation of jtag_pad_mux (3 functions on 4 pads) - build only (scenarios of TESTS_LIST)
 sim_pad_mux_5x2           : Simulation of jtag_pad_mux, 5 functions on 2 pads, every scenario
 sim_pad_mux_default       : Simulation of jtag_pad_mux - unselected functions see PAD_IN_DEFAULT

@@ -119,6 +119,17 @@ package tb_jtag_bfm_pkg is
     constant cfg          : in    tb_cfg_t
     );
 
+  -- One TCK cycle with the timing of the BFM (TCK falls with TMS and TDI,
+  -- TDO sampled just before the rising edge), for the TAP paths the BFM
+  -- does not use (Pause, Exit2, zero-length scans)
+  procedure tb_clock(
+    constant tms          : in    std_logic;
+    constant tdi          : in    std_logic;
+    variable tdo          : out   std_logic;
+    signal   jtag_if      : inout t_jtag_if;
+    constant cfg          : in    tb_cfg_t
+    );
+
   -- IR scan, then check of ir_o
   procedure tb_write_ir(
     constant opcode       : in    natural;
@@ -251,6 +262,23 @@ package body tb_jtag_bfm_pkg is
                   scope        => C_TB_SCOPE,
                   config       => cfg.bfm);
   end procedure tb_idle;
+
+  procedure tb_clock(
+    constant tms          : in    std_logic;
+    constant tdi          : in    std_logic;
+    variable tdo          : out   std_logic;
+    signal   jtag_if      : inout t_jtag_if;
+    constant cfg          : in    tb_cfg_t
+    ) is
+  begin
+    jtag_if.tck  <= '0';
+    jtag_if.tms  <= tms;
+    jtag_if.tdi  <= tdi;
+    wait for cfg.bfm.tck_period/2;
+    tdo          := jtag_if.tdo;
+    jtag_if.tck  <= '1';
+    wait for cfg.bfm.tck_period/2;
+  end procedure tb_clock;
 
   procedure tb_write_ir(
     constant opcode       : in    natural;

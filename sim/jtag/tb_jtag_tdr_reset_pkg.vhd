@@ -14,7 +14,8 @@
 --  Scenario tdr_reset of tb_jtag : Reset values of the TDRs : data_o of jtag_tdr_out and jtag_tdr_inout
 --  cleared by the power-on reset ; TRST* clears data_o and the shift
 --  registers (with TRST_ENABLE = false : both kept) ; Test-Logic-Reset (5 TMS
---  = 1) clears data_o, the shift registers are kept.
+--  = 1) clears data_o, the shift registers are kept ; data_o held by the
+--  Update-DR of BYPASS while the shift registers differ from data_o.
 -------------------------------------------------------------------------------
 -- Copyright (c) 2026
 -------------------------------------------------------------------------------
@@ -108,6 +109,10 @@ package body tb_jtag_tdr_reset_pkg is
     tb_reset(false, "5 TMS = 1, no TRST*", jtag_if, cfg);
     check_value(tb_rsp.tdr_out_data  (WO-1 downto 0), (WO-1 downto 0 => '0'), ERROR, "data_o of jtag_tdr_out after Test-Logic-Reset", C_TB_SCOPE);
     check_value(tb_rsp.tdr_inout_data(WI-1 downto 0), (WI-1 downto 0 => '0'), ERROR, "data_o of jtag_tdr_inout after Test-Logic-Reset", C_TB_SCOPE);
+    tb_write_ir(ir_bypass(cfg), "BYPASS", jtag_if, tb_rsp, cfg);
+    tb_check_dr(x"5A", bypass_of(x"5A"), "BYPASS after Test-Logic-Reset", jtag_if, cfg);
+    check_value(tb_rsp.tdr_out_data  (WO-1 downto 0), (WO-1 downto 0 => '0'), ERROR, "data_o of jtag_tdr_out held (Update-DR of BYPASS)", C_TB_SCOPE);
+    check_value(tb_rsp.tdr_inout_data(WI-1 downto 0), (WI-1 downto 0 => '0'), ERROR, "data_o of jtag_tdr_inout held (Update-DR of BYPASS)", C_TB_SCOPE);
     tb_write_ir(C_IR_TDR_OUT, "jtag_tdr_out", jtag_if, tb_rsp, cfg);
     tb_check_dr(v_o2, v_o1, "Shift register of jtag_tdr_out kept by Test-Logic-Reset", jtag_if, cfg);
   end procedure run;

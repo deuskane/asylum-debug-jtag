@@ -53,6 +53,7 @@ filesets:
       - sim/jtag/tb_jtag_unclaimed_pkg.vhd
       - sim/jtag/tb_jtag_user_pkg.vhd
       - sim/jtag/tb_jtag_tdo_en_pkg.vhd
+      - sim/jtag/tb_jtag_pause_pkg.vhd
       - sim/jtag/tb_jtag_tdr_in_pkg.vhd
       - sim/jtag/tb_jtag_tdr_out_pkg.vhd
       - sim/jtag/tb_jtag_tdr_inout_pkg.vhd
@@ -302,7 +303,7 @@ targets:
   sim_jtag_user:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap and the TDRs - user instruction, TDO from user_tdo_i
+    description     : Simulation of jtag_tap and the TDRs - user instructions, TDO from user_tdo_i (TDR of the opcode)
     parameters      :
       - TESTS_LIST=user
       - IR_WIDTH=5
@@ -318,6 +319,19 @@ targets:
     description     : Simulation of jtag_tap and the TDRs - tdo_en high in Shift-IR and Shift-DR only
     parameters      :
       - TESTS_LIST=tdo_en
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
+
+  #---------------------------------------
+  sim_jtag_pause:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap and the TDRs - Pause-IR, Pause-DR, Exit2 and zero-length scans, every TAP transition
+    parameters      :
+      - TESTS_LIST=pause
       - IR_WIDTH=5
       - TRST_ENABLE=true
       - TDR_IN_WIDTH=8
@@ -382,7 +396,7 @@ targets:
     << : *sim_jtag
     description     : Simulation of jtag_tap and the TDRs, 8-bit IR, no TRST, TDRs of 1 (in), 33 (out) and 5 (in/out) bits, every scenario
     parameters      :
-      - TESTS_LIST=reset_trst,reset_tms,ir_capture,idcode,bypass,unclaimed,user,tdo_en,tdr_in,tdr_out,tdr_inout,tdr_reset
+      - TESTS_LIST=reset_trst,reset_tms,ir_capture,idcode,bypass,unclaimed,user,tdo_en,pause,tdr_in,tdr_out,tdr_inout,tdr_reset
       - IR_WIDTH=8
       - TRST_ENABLE=false
       - TDR_IN_WIDTH=1
