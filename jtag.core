@@ -201,6 +201,15 @@ targets:
       - NB_PAD=1
 
   #---------------------------------------
+  # jtag_bitbang alone (no generic, its own figures : not in jtag_wrapper)
+  #---------------------------------------
+  lint_ghdl_synth_bitbang :
+  #---------------------------------------
+    << : *lint_ghdl_synth
+    description     : Synthesis check of jtag_bitbang (remote_bitbang JTAG master)
+    toplevel        : asylum.jtag_bitbang
+
+  #---------------------------------------
   # Synthesis : size of jtag_wrapper with the generics of the target,
   # Xilinx Artix-7 (LUT, FF, BRAM, DSP) and sky130 (area), by Yosys and
   # its GHDL plugin. Same configurations as lint_ghdl_synth_*.
@@ -230,6 +239,13 @@ targets:
       - TDR_INOUT_WIDTH=1
       - NB_FUNC=2
       - NB_PAD=1
+
+  #---------------------------------------
+  syn_bitbang :
+  #---------------------------------------
+    << : *syn
+    description     : Synthesis (Artix-7, sky130) of jtag_bitbang (remote_bitbang JTAG master)
+    toplevel        : asylum.jtag_bitbang
 
   #---------------------------------------
   # tb_jtag : compiled once per configuration, scenarios chosen at run
