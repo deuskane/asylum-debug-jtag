@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+jobs:
+#<GENERATE_BEGIN>
+  sim_jtag:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag
+
+  sim_jtag_bypass:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_bypass
+
+  sim_jtag_idcode:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_idcode
+
+  sim_jtag_ir8:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_ir8
+
+  sim_jtag_ir_capture:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_ir_capture
+
+  sim_jtag_reset_tms:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_reset_tms
+
+  sim_jtag_reset_trst:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_reset_trst
+
+  sim_jtag_tdo_en:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_tdo_en
+
+  sim_jtag_tdr_in:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_tdr_in
+
+  sim_jtag_tdr_inout:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_tdr_inout
+
+  sim_jtag_tdr_out:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_tdr_out
+
+  sim_jtag_tdr_reset:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_tdr_reset
+
+  sim_jtag_unclaimed:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_unclaimed
+
+  sim_jtag_user:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_jtag_user
+
+  sim_pad_mux:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_pad_mux
+
+  sim_pad_mux_5x2:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_pad_mux_5x2
+
+  sim_pad_mux_default:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_pad_mux_default
+
+  sim_pad_mux_output_enable:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_pad_mux_output_enable
+
+  sim_pad_mux_select:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_pad_mux_select
+
+  lint_ghdl:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: lint_ghdl
+
+  lint_ghdl_synth_default:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: lint_ghdl_synth_default
+
+  lint_ghdl_synth_min:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: lint_ghdl_synth_min
+
+  syn_default:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: syn_default
+
+  syn_min:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: syn_min
+
+  badges:
+    needs: [sim_jtag, sim_jtag_bypass, sim_jtag_idcode, sim_jtag_ir8, sim_jtag_ir_capture, sim_jtag_reset_tms, sim_jtag_reset_trst, sim_jtag_tdo_en, sim_jtag_tdr_in, sim_jtag_tdr_inout, sim_jtag_tdr_out, sim_jtag_tdr_reset, sim_jtag_unclaimed, sim_jtag_user, sim_pad_mux, sim_pad_mux_5x2, sim_pad_mux_default, sim_pad_mux_output_enable, sim_pad_mux_select, lint_ghdl, lint_ghdl_synth_default, lint_ghdl_synth_min, syn_default, syn_min]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    uses: deuskane/asylum-ci/.github/workflows/badges.yml@main
+    with:
+      results: ${{ toJSON(needs) }}
+
+#<GENERATE_END>
