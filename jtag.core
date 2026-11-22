@@ -82,6 +82,24 @@ filesets:
       # string_pkg list_length / list_item / list_contains (TESTS_LIST)
       - ">=asylum:utils:pkg:1.10.0"
 
+  #---------------------------------------
+  syn:
+  #---------------------------------------
+    files        :
+      - syn/jtag_wrapper.vhd
+    file_type    : vhdlSource-2008
+    logical_name : asylum
+    # ghdl_synth.sh / ghdl_synth.mk (pre_run hook of lint_ghdl_synth_*)
+    depend       :
+      - asylum:utils:ghdl_synth
+
+  #---------------------------------------
+  syn_yosys:
+  #---------------------------------------
+    # yosys_synth.sh / yosys_synth.mk / yosys_synth.py (pre_run hook of syn_*)
+    depend       :
+      - asylum:utils:yosys_synth
+
 #=========================================
 targets:
 #=========================================
@@ -94,6 +112,80 @@ targets:
       - hdl
     toplevel        : jtag_tap
     default_tool    : ghdl
+
+  #---------------------------------------
+  # Lint : -Wall analysis and elaboration (empty simulation)
+  #---------------------------------------
+  lint_ghdl : &lint_ghdl
+    << : *default
+    description     : Lint with GHDL (-Wall analysis and elaboration of jtag_wrapper)
+    toplevel        : asylum.jtag_wrapper
+    filesets_append : [syn]
+    default_tool    : ghdl
+    tools :
+      ghdl :
+        analyze_options : ["-Wall"]
+
+  #---------------------------------------
+  # Synthesis check : -Wall analysis, ghdl --synth -Wall and elaboration
+  # (no simulation) of jtag_wrapper with the generics of the target.
+  # The pre_run hook (ghdl_synth.sh of asylum:utils:ghdl_synth) adds
+  # ghdl_synth.mk to the edalize Makefile.
+  # FuseSoC merges tools in depth : analyze_options comes from lint_ghdl.
+  #---------------------------------------
+  lint_ghdl_synth_default : &lint_ghdl_synth
+    << : *lint_ghdl
+    description     : Synthesis check of jtag_wrapper, default generics (5-bit IR, TRST, TDRs of 16 (in), 8 (out) and 8 (in/out) bits, 3 functions on 4 pads)
+    tools :
+      ghdl :
+        run_options     : ["--no-run"]
+    hooks :
+      pre_run : [ghdl_synth]
+
+  #---------------------------------------
+  lint_ghdl_synth_min :
+  #---------------------------------------
+    << : *lint_ghdl_synth
+    description     : Synthesis check of jtag_wrapper, smallest configuration (3-bit IR, no TRST, 1-bit TDRs, 2 functions on 1 pad)
+    parameters      :
+      - IR_WIDTH=3
+      - TRST_ENABLE=false
+      - TDR_IN_WIDTH=1
+      - TDR_OUT_WIDTH=1
+      - TDR_INOUT_WIDTH=1
+      - NB_FUNC=2
+      - NB_PAD=1
+
+  #---------------------------------------
+  # Synthesis : size of jtag_wrapper with the generics of the target,
+  # Xilinx Artix-7 (LUT, FF, BRAM, DSP) and sky130 (area), by Yosys and
+  # its GHDL plugin. Same configurations as lint_ghdl_synth_*.
+  # The pre_run hook (yosys_synth.sh of asylum:utils:yosys_synth) adds
+  # yosys_synth.mk to the edalize Makefile.
+  #---------------------------------------
+  syn_default : &syn
+    << : *lint_ghdl
+    description     : Synthesis (Artix-7, sky130) of jtag_wrapper, default generics (5-bit IR, TRST, TDRs of 16 (in), 8 (out) and 8 (in/out) bits, 3 functions on 4 pads)
+    filesets_append : [syn, syn_yosys]
+    tools :
+      ghdl :
+        run_options     : ["--no-run"]
+    hooks :
+      pre_run : [yosys_synth]
+
+  #---------------------------------------
+  syn_min :
+  #---------------------------------------
+    << : *syn
+    description     : Synthesis (Artix-7, sky130) of jtag_wrapper, smallest configuration (3-bit IR, no TRST, 1-bit TDRs, 2 functions on 1 pad)
+    parameters      :
+      - IR_WIDTH=3
+      - TRST_ENABLE=false
+      - TDR_IN_WIDTH=1
+      - TDR_OUT_WIDTH=1
+      - TDR_INOUT_WIDTH=1
+      - NB_FUNC=2
+      - NB_PAD=1
 
   #---------------------------------------
   # tb_jtag : compiled once per configuration, scenarios chosen at run
@@ -365,6 +457,22 @@ targets:
       - NB_PAD=2
 
 #=========================================
+scripts:
+#=========================================
+
+  #---------------------------------------
+  # pre_run hook of lint_ghdl_synth_* (cwd = work_root)
+  #---------------------------------------
+  ghdl_synth :
+    cmd : [bash, ghdl_synth.sh]
+
+  #---------------------------------------
+  # pre_run hook of syn_* (cwd = work_root)
+  #---------------------------------------
+  yosys_synth :
+    cmd : [bash, yosys_synth.sh]
+
+#=========================================
 parameters :
 #=========================================
 
@@ -374,7 +482,7 @@ parameters :
     paramtype   : generic
 
   #---------------------------------------
-  # Generics of tb_jtag (sim_jtag*)
+  # Generics of tb_jtag (sim_jtag*) and of jtag_wrapper (lint_ghdl_synth_*, syn_*)
   #---------------------------------------
   IR_WIDTH :
     description : Width of the instruction register of the TAP
@@ -407,7 +515,7 @@ parameters :
     paramtype   : generic
 
   #---------------------------------------
-  # Generics of tb_pad_mux (sim_pad_mux*)
+  # Generics of tb_pad_mux (sim_pad_mux*) and of jtag_wrapper
   #---------------------------------------
   NB_FUNC :
     description : Number of functions of the pad multiplexer
