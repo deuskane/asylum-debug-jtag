@@ -1,0 +1,517 @@
+<!--
+  README MODEL (common to every Asylum IP, keep the same headings)
+  ----------------------------------------------------------------
+  Regenerate from the sources, never from the previous README text alone:
+    hdl/*.vhd (entities, generics, ports), hdl/csr/*.hjson (register map),
+    <IP>.core (VLNV, targets, depends), mk/targets.txt, sim/, syn/, esw/.
+  Sections, in this order:
+    badges / title + one-line pitch / Overview / Features / Block Diagram /
+    Getting Started / Hardware Interfaces / Configuration / Resources /
+    Theory of Operation / Registers / Programmer's Guide /
+    Design Verification / Dependencies and Related IPs / License
+  Rules:
+    - English, short and factual: every statement backed by the sources.
+    - No VLNV line: the version badge shows it.
+    - Badges: first line version, license; second line CI, lint, sim, syn.
+    - Block diagram and FSM: pages Overview and FSM of doc/<NAME>.drawio, exported to
+      doc/<NAME>-Overview.png and doc/<NAME>-FSM.png (make -C doc).
+    - Timing diagrams: WaveDrom source doc/<NAME>-<what>.json, rendered
+      doc/<NAME>-<what>.svg (make -C doc), shown as images.
+    - No CPU named (OpenBlaze, PicoBlaze, RISC-V) outside the CPU and SoC IPs.
+    - Registers: link to the generated hdl/csr/<X>_csr.md, never copy the tables.
+    - Tables: Configuration = Name|Type|Default|Description,
+      Hardware Interfaces = Name|Direction|Type|Description, grouped by interface.
+    - A section with nothing to say is one line ("This IP has no
+      software-visible registers."), never removed.
+-->
+[![Version](https://img.shields.io/github/v/tag/deuskane/asylum-debug-jtag?filter=asylum-debug-jtag-*&label=version&color=blue)](https://github.com/deuskane/asylum-debug-jtag/tags)
+[![License](https://img.shields.io/github/license/deuskane/asylum-debug-jtag)](LICENSE)
+
+[![CI](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml/badge.svg)](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml)
+[![lint](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fdeuskane%2Fasylum-debug-jtag%2Fbadges%2Flint.json)](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml)
+[![sim](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fdeuskane%2Fasylum-debug-jtag%2Fbadges%2Fsim.json)](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml)
+[![syn](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fdeuskane%2Fasylum-debug-jtag%2Fbadges%2Fsyn.json)](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml)
+
+# JTAG TAP, Test Data Registers and Pad Multiplexer
+
+**A small, readable IEEE 1149.1 JTAG Test Access Port in VHDL: the 16-state TAP controller, IDCODE and BYPASS, user instructions decoded outside the TAP, test data registers of any width, and a generic pad multiplexer to share a few pads between functions.**
+
+Part of the [Asylum project](https://github.com/deuskane/asylum-project), a collection of small IP cores, written to be read and learned from.
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Features](#features)
+3. [Block Diagram](#block-diagram)
+4. [Getting Started](#getting-started)
+5. [Hardware Interfaces](#hardware-interfaces)
+6. [Configuration](#configuration)
+7. [Resources](#resources)
+8. [Theory of Operation](#theory-of-operation)
+9. [Registers](#registers)
+10. [Programmer's Guide](#programmers-guide)
+11. [Design Verification](#design-verification)
+12. [Dependencies and Related IPs](#dependencies-and-related-ips)
+13. [Repository Layout](#repository-layout)
+14. [License](#license)
+
+## Overview
+
+JTAG (IEEE 1149.1) gives a debugger access to the inside of a chip through four pins: TCK (clock), TMS (mode select), TDI (data in) and TDO (data out), plus an optional TRST\* (reset). The pins drive a Test Access Port (TAP): a 16-state controller walked by TMS, an instruction register (IR) and data registers (DR) shifted between TDI and TDO.
+
+This IP gives the building blocks to put your own registers behind a JTAG port:
+
+- `jtag_tap` ([hdl/jtag_tap.vhd](hdl/jtag_tap.vhd)): the TAP controller, the IR (`IR_WIDTH` bits), the IDCODE and BYPASS registers and TDO. Your design decodes the user instructions from `ir_o` and gives the TDO of the selected user register (`user_tdo_en_i`, `user_tdo_i`).
+- Three test data registers (TDRs), whose width is the width of their data ports: `jtag_tdr_in` ([hdl/jtag_tdr_in.vhd](hdl/jtag_tdr_in.vhd), parallel input: reads a value), `jtag_tdr_out` ([hdl/jtag_tdr_out.vhd](hdl/jtag_tdr_out.vhd), parallel output: writes a value) and `jtag_tdr_inout` ([hdl/jtag_tdr_inout.vhd](hdl/jtag_tdr_inout.vhd), both).
+- `jtag_pad_mux` ([hdl/jtag_pad_mux.vhd](hdl/jtag_pad_mux.vhd)): a generic multiplexer that lets several functions share a group of pads, for example a UART, a debug UART and a JTAG chain on the four pads of a UART.
+
+There is no boundary scan: the TAP is a debug and test port for the logic inside the FPGA. Everything runs in the TCK clock domain, the TAP needs no system clock.
+
+## Features
+
+- IEEE 1149.1 TAP controller: 16 states, transitions on the rising edge of TCK, Test-Logic-Reset after 5 TCK with TMS = 1 from any state
+- Power-on reset (`arst_b_i`) and optional TRST\* (`TRST_ENABLE`), both asynchronous
+- Instruction register of `IR_WIDTH` bits (at least 2): Capture-IR loads `0...01`, IDCODE (`0...01`) selected after reset and in Test-Logic-Reset
+- IDCODE (32 bits, `IDCODE_VALUE`, bit 0 = 1 checked at elaboration) and BYPASS (all ones, and every opcode not claimed by the user decoder)
+- User instructions decoded outside the TAP from `ir_o`: `user_tdo_en_i = 1` selects `user_tdo_i` as TDO
+- Capture and shift on the rising edge of TCK, IR, TDO and update on the falling edge, `tdo_en` high in Shift-IR / Shift-DR only (tri-state TDO at the pad)
+- Three TDR entities with unconstrained data ports (any width and range); `data_o` held between two Update-DR, cleared by the TAP reset and in Test-Logic-Reset
+- Generic pad multiplexer: `NB_FUNC` functions on `NB_PAD` pads, the unselected functions see `PAD_IN_DEFAULT`
+- Equivalent to the TAP of the WardRV debug unit (`WardRV_dbg_tap`) with the decoder `user_tdo_en = (ir = DTMCS or ir = DMI)`
+
+## Block Diagram
+
+![Block diagram of jtag_tap, the TDRs and jtag_pad_mux](doc/jtag-Overview.png)
+
+- `jtag_tap`: the TAP controller follows TMS; the IR, IDCODE and BYPASS registers capture and shift; the TDO multiplexer selects the IR in Shift-IR, else the user register when `user_tdo_en_i = 1`, else IDCODE or BYPASS; TDO is registered on the falling edge of TCK.
+- The user decoder belongs to your design: it compares `ir_o` with the opcodes of its registers, drives the `sel_i` of each TDR, `user_tdo_en_i` and `user_tdo_i` (the `tdo_o` of the selected TDR).
+- The TDRs receive the control outputs of the TAP (`tck_o`, `trst_b_o`, `tlr_o`, `capture_dr_o`, `shift_dr_o`, `update_dr_o`, `tdi_o`).
+- `jtag_pad_mux` is independent of the TAP: it connects one of `NB_FUNC` functions to the pads.
+
+## Getting Started
+
+The cores of the Asylum IPs are published in the FuseSoC library [asylum-cores](https://github.com/deuskane/asylum-cores) (with the UVVM cores used by the testbenches):
+
+```bash
+pip install fusesoc
+fusesoc library add https://github.com/deuskane/asylum-cores
+fusesoc run --target sim_jtag_tdr_inout asylum:debug:jtag  # needs GHDL
+```
+
+To use the IP in your design, add `asylum:debug:jtag` to the `depend` list of your core; the entities and their components (`asylum.jtag_pkg`) are in library `asylum`.
+
+### A TAP with two user registers
+
+A 5-bit IR, a 16-bit status register read through JTAG (opcode 2) and an 8-bit control register written and read back (opcode 4), built as [syn/jtag_wrapper.vhd](syn/jtag_wrapper.vhd):
+
+```vhdl
+library asylum;
+use     asylum.jtag_pkg.all;
+
+  -- User opcodes
+  constant IR_STATUS  : std_logic_vector(5-1 downto 0) := "00010";
+  constant IR_CONTROL : std_logic_vector(5-1 downto 0) := "00100";
+
+  ins_tap : jtag_tap
+    generic map
+    (IR_WIDTH        => 5
+    ,IDCODE_VALUE    => x"10000001"
+    ,TRST_ENABLE     => true
+    )
+    port map
+    (arst_b_i        => arst_b             -- power-on reset
+    ,jtag_ini_i      => jtag_ini           -- tck, trst_n, tms, tdi
+    ,jtag_tgt_o      => jtag_tgt           -- tdo, tdo_en
+    ,tck_o           => tck
+    ,trst_b_o        => trst_b
+    ,tlr_o           => tlr
+    ,ir_o            => ir
+    ,capture_dr_o    => capture_dr
+    ,shift_dr_o      => shift_dr
+    ,update_dr_o     => update_dr
+    ,tdi_o           => tdi
+    ,user_tdo_en_i   => user_tdo_en
+    ,user_tdo_i      => user_tdo
+    );
+
+  -- User decoder
+  sel_status  <= '1' when ir = IR_STATUS  else '0';
+  sel_control <= '1' when ir = IR_CONTROL else '0';
+  user_tdo_en <= sel_status or sel_control;
+  user_tdo    <= tdo_status when sel_status = '1' else
+                 tdo_control;
+
+  ins_status : jtag_tdr_in
+    port map
+    (tck_i           => tck
+    ,trst_b_i        => trst_b
+    ,sel_i           => sel_status
+    ,capture_dr_i    => capture_dr
+    ,shift_dr_i      => shift_dr
+    ,update_dr_i     => update_dr
+    ,tdi_i           => tdi
+    ,tdo_o           => tdo_status
+    ,data_i          => status             -- std_logic_vector(16-1 downto 0) : 16-bit register
+    );
+
+  ins_control : jtag_tdr_inout
+    port map
+    (tck_i           => tck
+    ,trst_b_i        => trst_b
+    ,tlr_i           => tlr
+    ,sel_i           => sel_control
+    ,capture_dr_i    => capture_dr
+    ,shift_dr_i      => shift_dr
+    ,update_dr_i     => update_dr
+    ,tdi_i           => tdi
+    ,tdo_o           => tdo_control
+    ,data_i          => control            -- read back : the value written
+    ,data_o          => control            -- std_logic_vector(8-1 downto 0) : 8-bit register
+    );
+
+  -- TDO tri-state at the pad
+  jtag_tdo_o <= jtag_tgt.tdo when jtag_tgt.tdo_en = '1' else 'Z';
+```
+
+The data ports of the TDRs are unconstrained: give them signals (GHDL 6.0.0 crashes on an expression, such as a concatenation, as the actual of an unconstrained port). `data_i` and `data_o` of `jtag_tdr_inout` must have the same width. Choose user opcodes different from IDCODE (`0...01`) and BYPASS (all ones); avoid the all-zero opcode, which is EXTEST in IEEE 1149.1 (see [Instructions](#instructions)).
+
+On the host, any JTAG adapter driven by OpenOCD or urJTAG scans these registers: the IDCODE identifies the TAP, an IR scan selects a user register, a DR scan of its width reads (`jtag_tdr_in`, `jtag_tdr_inout`) and writes (`jtag_tdr_out`, `jtag_tdr_inout`) it.
+
+### Sharing the UART pads (pad multiplexer)
+
+Three functions on the four pads of a UART, selected by two switches (`00` UART, `01` debug UART TX only, `10` JTAG chain, `11` UART): pad 0 `uart_tx_o` (TDO in JTAG mode), pad 1 `uart_rx_i` (TDI), pad 2 `uart_cts_b_i` (TCK), pad 3 `uart_rts_b_io`, an inout pad: RTS\* for the UART, TMS input in JTAG mode. The unselected functions see all ones (idle UART line, TMS = 1).
+
+```vhdl
+  signal sel      : natural range 0 to 3-1;
+  signal func_out : pad_array_t(0 to 3-1)(4-1 downto 0);
+  signal func_oe  : pad_array_t(0 to 3-1)(4-1 downto 0);
+  signal func_in  : pad_array_t(0 to 3-1)(4-1 downto 0);
+  signal pad_out  : std_logic_vector(4-1 downto 0);
+  signal pad_oe   : std_logic_vector(4-1 downto 0);
+  signal pad_in   : std_logic_vector(4-1 downto 0);
+
+  sel         <= 1 when switch(1 downto 0) = "01" else
+                 2 when switch(1 downto 0) = "10" else
+                 0;
+
+  -- Function 0 : UART (TX, RTS* out ; RX, CTS* in)
+  func_out(0) <= (0 => uart_tx, 3 => uart_rts_b, others => '0');
+  func_oe (0) <= "1001";
+  uart_rx     <= func_in(0)(1);
+  uart_cts_b  <= func_in(0)(2);
+  -- Function 1 : debug UART, TX only
+  func_out(1) <= (0 => debug_tx, others => '0');
+  func_oe (1) <= "0001";
+  -- Function 2 : JTAG chain (TDO out ; TDI, TCK, TMS in)
+  func_out(2) <= (0 => jtag_tgt.tdo,    others => '0');
+  func_oe (2) <= (0 => jtag_tgt.tdo_en, others => '0');
+  jtag_ini    <= (tck => func_in(2)(2), tms => func_in(2)(3), tdi => func_in(2)(1), trst_n => '1');
+
+  ins_pad_mux : jtag_pad_mux
+    generic map
+    (NB_FUNC         => 3
+    ,NB_PAD          => 4
+    ,PAD_IN_DEFAULT  => "1111"
+    )
+    port map
+    (sel_i           => sel
+    ,func_out_i      => func_out
+    ,func_oe_i       => func_oe
+    ,func_in_o       => func_in
+    ,pad_out_o       => pad_out
+    ,pad_oe_o        => pad_oe
+    ,pad_in_i        => pad_in
+    );
+
+  uart_tx_o     <= pad_out(0) when pad_oe(0) = '1' else 'Z';
+  uart_rts_b_io <= pad_out(3) when pad_oe(3) = '1' else 'Z';
+  pad_in        <= uart_rts_b_io & uart_cts_b_i & uart_rx_i & '1';
+```
+
+Synchronize `switch` before using it, and change it only while the functions are idle: the multiplexer itself has no clock.
+
+## Hardware Interfaces
+
+Types of [hdl/jtag_pkg.vhd](hdl/jtag_pkg.vhd): `jtag_ini_t` (JTAG pins from the debugger: `tck`, `trst_n`, `tms`, `tdi`), `jtag_tgt_t` (to the debugger: `tdo`, `tdo_en`), `pad_array_t` (array of `std_logic_vector`: one element per function, one bit per pad).
+
+### jtag_tap
+
+| Name | Direction | Type | Description |
+|------|-----------|------|-------------|
+| `arst_b_i` | in | std_logic | Power-on reset, asynchronous, active low |
+| `jtag_ini_i` | in | jtag_ini_t | JTAG pins TCK, TRST\* (used when `TRST_ENABLE`), TMS, TDI |
+| `jtag_tgt_o` | out | jtag_tgt_t | TDO and its output enable `tdo_en` (high in Shift-IR / Shift-DR only), both change on the falling edge of TCK |
+| `tck_o` | out | std_logic | TCK, clock of the user registers |
+| `trst_b_o` | out | std_logic | Reset of the user registers: power-on reset and TRST\*, active low |
+| `tlr_o` | out | std_logic | 1: TAP in Test-Logic-Reset |
+| `ir_o` | out | std_logic_vector(IR_WIDTH-1 downto 0) | Current instruction, to the user decoder (changes on the falling edge of TCK in Update-IR and Test-Logic-Reset) |
+| `capture_dr_o` | out | std_logic | 1: TAP in Capture-DR |
+| `shift_dr_o` | out | std_logic | 1: TAP in Shift-DR |
+| `update_dr_o` | out | std_logic | 1: TAP in Update-DR |
+| `tdi_o` | out | std_logic | TDI, shifted into the user registers |
+| `user_tdo_en_i` | in | std_logic | 1: `ir_o` is a user instruction, TDO comes from `user_tdo_i` (outside Shift-IR) |
+| `user_tdo_i` | in | std_logic | TDO of the selected user register (its LSB) |
+
+### jtag_tdr_in, jtag_tdr_out, jtag_tdr_inout
+
+The three TDRs have the same TAP ports; `jtag_tdr_in` has no `tlr_i`.
+
+| Name | Direction | Type | Description |
+|------|-----------|------|-------------|
+| `tck_i` | in | std_logic | `tck_o` of the TAP |
+| `trst_b_i` | in | std_logic | `trst_b_o` of the TAP: clears the shift register and `data_o` |
+| `tlr_i` | in | std_logic | `tlr_o` of the TAP: clears `data_o` (out and inout only) |
+| `sel_i` | in | std_logic | 1: register selected by the current instruction (user decoder) |
+| `capture_dr_i` | in | std_logic | `capture_dr_o` of the TAP (not used by `jtag_tdr_out`) |
+| `shift_dr_i` | in | std_logic | `shift_dr_o` of the TAP |
+| `update_dr_i` | in | std_logic | `update_dr_o` of the TAP (not used by `jtag_tdr_in`) |
+| `tdi_i` | in | std_logic | `tdi_o` of the TAP |
+| `tdo_o` | out | std_logic | LSB of the shift register, to `user_tdo_i` when selected |
+| `data_i` | in | std_logic_vector (unconstrained) | `jtag_tdr_in`, `jtag_tdr_inout`: value loaded in Capture-DR; its width is the width of the register |
+| `data_o` | out | std_logic_vector (unconstrained) | `jtag_tdr_out`, `jtag_tdr_inout`: value written by the last Update-DR; its width is the width of the register (`jtag_tdr_inout`: the width of `data_i`) |
+
+### jtag_pad_mux
+
+| Name | Direction | Type | Description |
+|------|-----------|------|-------------|
+| `sel_i` | in | natural range 0 to NB_FUNC-1 | Selected function |
+| `func_out_i` | in | pad_array_t(0 to NB_FUNC-1)(NB_PAD-1 downto 0) | Pad outputs of each function |
+| `func_oe_i` | in | pad_array_t(0 to NB_FUNC-1)(NB_PAD-1 downto 0) | Pad output enables of each function |
+| `func_in_o` | out | pad_array_t(0 to NB_FUNC-1)(NB_PAD-1 downto 0) | Pad inputs seen by each function: `pad_in_i` for the selected function, `PAD_IN_DEFAULT` for the others |
+| `pad_out_o` | out | std_logic_vector(NB_PAD-1 downto 0) | Pad outputs of the selected function |
+| `pad_oe_o` | out | std_logic_vector(NB_PAD-1 downto 0) | Pad output enables of the selected function |
+| `pad_in_i` | in | std_logic_vector(NB_PAD-1 downto 0) | Pad inputs |
+
+## Configuration
+
+Generics of `jtag_tap`:
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `IR_WIDTH` | positive | `5` | Width of the instruction register, at least 2 |
+| `IDCODE_VALUE` | std_logic_vector(32-1 downto 0) | `x"10000001"` | Value of the IDCODE register: bit 0 = 1 and manufacturer identity (bits 11:1) other than `0x7F` (IEEE 1149.1), checked at elaboration |
+| `TRST_ENABLE` | boolean | `true` | `true`: TRST\* resets the TAP; `false`: `jtag_ini_i.trst_n` is ignored |
+
+The TDRs have no generic: their width is the width of the actual of `data_i` (`jtag_tdr_in`, `jtag_tdr_inout`) or `data_o` (`jtag_tdr_out`).
+
+Generics of `jtag_pad_mux`:
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `NB_FUNC` | positive | `3` | Number of functions |
+| `NB_PAD` | positive | `4` | Number of pads |
+| `PAD_IN_DEFAULT` | std_logic_vector(NB_PAD-1 downto 0) | none | Pad inputs seen by the unselected functions (one bit per pad), for example the idle level of a UART RX line or TMS = 1 |
+
+## Resources
+
+Figures of the `syn_*` targets (`make nonreg_syn`, see [Targets](#targets)): [syn/jtag_wrapper.vhd](syn/jtag_wrapper.vhd) (TAP, a user decoder, one TDR of each kind and a pad multiplexer) with the generics of each configuration, synthesized by Yosys and its GHDL plugin; the reports are in the build directory of each target.
+
+| Configuration | LUT¹ | LUTRAM¹ | FF¹ | CARRY4¹ | MUXF7/F8¹ | BRAM¹ | DSP¹ | Area² (µm²) | kGE³ |
+|---|---|---|---|---|---|---|---|---|---|
+| `syn_default` (5-bit IR, TRST\*, TDRs of 16 (in), 8 (out), 8 (in/out) bits, 3 functions on 4 pads) | 128 | 0 | 96 | 0 | 4 | 0 | 0 | 4244.07 | 1.131 |
+| `syn_min` (3-bit IR, no TRST\*, 1-bit TDRs, 2 functions on 1 pad) | 64 | 0 | 49 | 0 | 0 | 0 | 0 | 2155.82 | 0.574 |
+
+¹ Xilinx Artix-7 (LUT6), Yosys 0.33 `synth_xilinx -flatten -noiopad -noclkbuf`, before place and route: every cell of the netlist is counted, Vivado may differ. Identical cells are merged as a vendor tool does (`opt_merge -share_all`); every remaining cell is counted, an `INV` as a `LUT1`. There is no memory: every register is in flip-flops; the 32-bit IDCODE register and the TDRs are most of them, the registers updated on the falling edge of TCK are `FDCE_1` / `FDPE_1`.
+
+² SkyWater sky130 `sky130_fd_sc_hd`, typical corner (tt, 25 °C, 1.80 V), Yosys 0.33 `synth` + `dfflibmap` + `abc -liberty`: standard-cell area only, no timing constraint, no buffering, clock tree or placement.
+
+³ Area in thousands of NAND2 gate equivalents (`sky130_fd_sc_hd__nand2_1` = 3.7536 µm²).
+
+## Theory of Operation
+
+### TAP controller
+
+![TAP controller of jtag_tap](doc/jtag-FSM.png)
+
+The TAP controller changes state on each rising edge of TCK, following TMS (IEEE 1149.1 figure 6-1). A scan starts and ends in Run-Test/Idle: Select-DR-Scan (and Select-IR-Scan for an IR scan), Capture, Shift (one TCK per bit, the last one with TMS = 1), Exit1, Update. Pause and Exit2 let the debugger stop in the middle of a shift. Five TCK with TMS = 1 reach Test-Logic-Reset from any state. The power-on reset (`arst_b_i`) and TRST\* (when `TRST_ENABLE`) force Test-Logic-Reset asynchronously.
+
+Edges (as in IEEE 1149.1):
+
+- rising edge of TCK: state, capture (Capture-IR / Capture-DR) and shift (Shift-IR / Shift-DR) of the IR, IDCODE, BYPASS and the TDRs: the debugger changes TMS and TDI on the falling edge, the TAP samples them on the rising edge;
+- falling edge of TCK: TDO and `tdo_en`, the instruction (Update-IR, or IDCODE in Test-Logic-Reset) and `data_o` of the TDRs (Update-DR): the debugger samples TDO on the rising edge, half a period after it changed.
+
+![DR scan of a 4-bit jtag_tdr_inout](doc/jtag-dr-scan.svg)
+
+The vectors are shifted LSB first: in Shift-DR, TDO gives bit 0 of the captured value first, and the bit shifted in with the last TCK of Shift-DR becomes the MSB.
+
+### Instructions
+
+| Opcode (IR_WIDTH bits) | Instruction | Data register | Decoded by |
+|------------------------|-------------|---------------|------------|
+| `0...01` | IDCODE | IDCODE, 32 bits, captures `IDCODE_VALUE` | `jtag_tap` (selected after reset and in Test-Logic-Reset) |
+| `1...11` | BYPASS | BYPASS, 1 bit, captures 0 | `jtag_tap` |
+| opcodes of the user decoder (`user_tdo_en_i = 1`) | user | the TDR selected by the decoder | your design |
+| any other opcode, `0...00` included | BYPASS | BYPASS | `jtag_tap` |
+
+Capture-IR loads `0...01` in the IR shift register: the debugger reads it during each IR scan (the two LSBs `01` are required by IEEE 1149.1). A zero-length IR scan (Capture-IR, Exit1-IR, Update-IR) loads `0...01`, so selects IDCODE.
+
+EXTEST: IEEE 1149.1 makes the all-zero opcode the mandatory EXTEST instruction of the boundary scan. This TAP has no boundary scan register: `0...00` selects BYPASS. Do not give it to a user register, so that a tool sending EXTEST does not disturb your design.
+
+The decoder of the WardRV debug unit (`user_tdo_en = (ir = DTMCS or ir = DMI)`, 5-bit IR) makes `jtag_tap` behave exactly as `WardRV_dbg_tap`: with this decoder `user_tdo_en_i = 1` never happens with IDCODE selected, the order of the TDO multiplexer is the same.
+
+### Test data registers
+
+Each TDR is a shift register of its width, active only while `sel_i = 1`:
+
+- `jtag_tdr_in`: Capture-DR loads `data_i`; Shift-DR shifts TDI in and the captured value out. Update-DR has no effect.
+- `jtag_tdr_out`: no capture: Shift-DR shifts TDI in and the previous content out (the bits written by the previous scan, zeros after the reset); Update-DR copies the shift register to `data_o` on the falling edge of TCK, held otherwise.
+- `jtag_tdr_inout`: capture of `data_i`, shift, then Update-DR copies the shift register to `data_o`. With `data_o` connected to `data_i`, a scan reads back the value written by the previous one.
+
+Reset (IEEE 1149.1 asks that the test logic does not disturb the system in Test-Logic-Reset): `trst_b_i` (power-on reset and TRST\*) clears the shift register and `data_o` asynchronously; Test-Logic-Reset clears `data_o` on the falling edge of TCK, so a debugger reset (5 TMS = 1) releases what the register drives (an injection, a reset request). The shift registers are not cleared in Test-Logic-Reset: a capture or a shift always comes before their content is used.
+
+Clock domains: `data_o` changes on the falling edge of TCK and `data_i` is sampled on the rising edge of TCK in Capture-DR. TCK is asynchronous to the system clock: synchronize `data_o` in the system domain (for example with `sync2dffrn` of [asylum-target-techmap](https://github.com/deuskane/asylum-target-techmap)), and read with `data_i` values that are stable or whose bits may be sampled on different sides of a change.
+
+### Pad multiplexer
+
+`jtag_pad_mux` is combinational: `pad_out_o` and `pad_oe_o` are the outputs and output enables of the function `sel_i`, `func_in_o(sel_i)` is `pad_in_i` and every other function sees `PAD_IN_DEFAULT`. The output enables tell the top-level pads which ones to drive (an inout pad, or a tri-state output such as TDO); an output-only pad may ignore them.
+
+## Registers
+
+This IP has no software-visible registers: the registers are reached through JTAG (see [Instructions](#instructions)).
+
+## Programmer's Guide
+
+This IP has no software-visible registers: a JTAG adapter scans the user registers from the host (OpenOCD `irscan` / `drscan`, urJTAG), see [Getting Started](#getting-started).
+
+## Design Verification
+
+### Testbenches
+
+| File | DUT | Description |
+|------|-----|-------------|
+| [sim/jtag/tb_jtag.vhd](sim/jtag/tb_jtag.vhd) | `jtag_tap`, a user decoder, `jtag_tdr_in`, `jtag_tdr_out`, `jtag_tdr_inout` | Self-checking UVVM testbench driven by the JTAG BFM `jtag_bfm_pkg` of [asylum-verification-uvvm](https://github.com/deuskane/asylum-verification-uvvm) (TCK 100 ns). The decoder claims one opcode per TDR (2 in, 3 out, 4 in/out), every other opcode is BYPASS. Generics `TESTS_LIST`, `IR_WIDTH`, `TRST_ENABLE`, `TDR_IN_WIDTH`, `TDR_OUT_WIDTH`, `TDR_INOUT_WIDTH`. Monitors (silent, an alert on error): a reference model of the TAP controller, against which `capture_dr_o`, `shift_dr_o`, `update_dr_o`, `tlr_o` and `tdo_en` are checked at each rising edge of TCK; TDO and `tdo_en` change on the falling edge of TCK only; `ir_o` changes in Update-IR / Test-Logic-Reset only; the bits shifted out by each IR scan and the TCK cycles with `tdo_en = 1` of each scan; the shift register (`tdo_o`) of a TDR does not change while it is not selected; `data_o` of a TDR changes only in Update-DR while selected or in Test-Logic-Reset. One package per scenario (`tb_jtag_<name>_pkg`), names and dispatch in [tb_jtag_tests_pkg](sim/jtag/tb_jtag_tests_pkg.vhd), helpers (configuration, model, BFM calls, data patterns) in [tb_jtag_bfm_pkg](sim/jtag/tb_jtag_bfm_pkg.vhd) |
+| [sim/pad_mux/tb_pad_mux.vhd](sim/pad_mux/tb_pad_mux.vhd) | `jtag_pad_mux` | Self-checking UVVM testbench, generics `TESTS_LIST`, `NB_FUNC`, `NB_PAD`; `PAD_IN_DEFAULT` mixes 0 and 1 bits. The DUT is combinational: no clock, the checks are made 10 ns after each change of the inputs |
+
+### Scenarios (`TESTS_LIST`)
+
+The scenarios are chosen at run time with the generic `TESTS_LIST`: names separated by `,` without space (`idcode,tdr_out,idcode`), a name may be repeated. The sequencer first checks every name (an unknown name is a `TB_ERROR` before any scenario runs), then for each scenario puts the stimuli back to idle, drives a power-on reset pulse (`tb_jtag`) and moves the TAP to Run-Test/Idle, logs `TEST <i>/<N> : <name>` and runs it: each scenario starts from reset. The empty list (default) only compiles and elaborates the testbench. The list is parsed with `list_length` / `list_item` / `list_contains` of `asylum.string_pkg` (`asylum:utils:pkg` >= 1.10.0).
+
+Checks counted as the `=> OK` lines of the log, reference configurations.
+
+| Testbench | Name | Checks | Description |
+|-----------|------|--------|-------------|
+| `tb_jtag` | `reset_trst` | 8 | TRST\* pulse alone (no TCK) with BYPASS then a user instruction selected: Test-Logic-Reset and IDCODE (`TRST_ENABLE = false`: TRST\* ignored, the instruction is kept) |
+| `tb_jtag` | `reset_tms` | 9 | Reset by 5 TMS = 1 only from BYPASS, a user instruction and an unclaimed opcode: IDCODE selected |
+| `tb_jtag` | `ir_capture` | 15 | Five IR scans: `IR_WIDTH` bits shifted out, Capture-IR value `0...01`, `ir_o` = the new opcode |
+| `tb_jtag` | `idcode` | 7 | IDCODE after the power-on reset and after an IR scan, 64-bit scan (IDCODE then the shifted-in bits), captured again by each scan |
+| `tb_jtag` | `bypass` | 5 | BYPASS: one bit captured to 0, data delayed by one bit (8, 1 and 33-bit scans) |
+| `tb_jtag` | `unclaimed` | 6 | Opcodes `0...00`, 5 and all ones but the LSB select BYPASS |
+| `tb_jtag` | `user` | 11 | Each user opcode selects the TDO of its TDR (`user_tdo_en_i`), IDCODE and BYPASS afterwards |
+| `tb_jtag` | `tdo_en` | 6 | TCK cycles with `tdo_en = 1`: `IR_WIDTH` in an IR scan, 32 in an IDCODE scan, 1 in a 1-bit scan, low in Run-Test/Idle |
+| `tb_jtag` | `pause` | 5 | The TAP paths the BFM does not use (Pause-IR / Pause-DR, Exit2, zero-length IR and DR scans, Update -> Select-DR-Scan), so that the 32 transitions of the controller are taken: IR and IDCODE shifted across Pause, zero-length IR scan selects IDCODE |
+| `tb_jtag` | `tdr_in` | 11 | `jtag_tdr_in`: capture of `data_i` (twice), scan of twice the width; no capture or shift while BYPASS, IDCODE or another TDR is selected; captured again once selected |
+| `tb_jtag` | `tdr_out` | 14 | `jtag_tdr_out`: `data_o` after reset, update, no capture (a scan returns the bits of the previous one), `data_o` held during the scans and while another instruction is selected, shift register kept |
+| `tb_jtag` | `tdr_inout` | 14 | `jtag_tdr_inout`: capture and update in the same scan (twice), `data_o` held while not selected, capture and update once selected again |
+| `tb_jtag` | `tdr_reset` | 22 | Reset values: power-on reset, TRST\* (`data_o` and shift registers cleared, kept without `TRST_ENABLE`), Test-Logic-Reset (`data_o` cleared, shift registers kept, `data_o` held by an Update-DR of BYPASS) |
+| `tb_pad_mux` | `select` | 12 | Each function selected: pads driven by its outputs and output enables, it sees the pad inputs (two values) |
+| `tb_pad_mux` | `default` | 9 | Each function selected: every other function sees `PAD_IN_DEFAULT` |
+| `tb_pad_mux` | `output_enable` | 6 | Output enables of the selected function only (low while the others are high, and the opposite) |
+
+Configurations (generics of the targets):
+
+| Testbench | Configuration | Generics | Checks |
+|-----------|---------------|----------|--------|
+| `tb_jtag` | reference (`sim_jtag_<name>`) | `IR_WIDTH = 5`, `TRST_ENABLE = true`, TDRs of 8 (in), 12 (out), 16 (in/out) bits | 133 (13 scenarios) |
+| `tb_jtag` | `ir8` | `IR_WIDTH = 8`, `TRST_ENABLE = false`, TDRs of 1 (in), 33 (out), 5 (in/out) bits | 133 |
+| `tb_pad_mux` | reference (`sim_pad_mux_<name>`) | 3 functions on 4 pads | 27 (3 scenarios) |
+| `tb_pad_mux` | `5x2` | 5 functions on 2 pads | 55 |
+
+### Targets
+
+| Target | Toplevel | Description |
+|--------|----------|-------------|
+| `default` | `jtag_tap` | HDL fileset (not a simulation) |
+| `sim_jtag` | `tb_jtag` | Reference configuration: build and elaboration only (`TESTS_LIST` empty), base of the scenario targets and of the list runs |
+| `sim_jtag_<name>` | `tb_jtag` | One target per scenario of the reference configuration (13 targets) |
+| `sim_jtag_ir8` | `tb_jtag` | 8-bit IR, no TRST\*, other TDR widths, every scenario |
+| `sim_pad_mux` | `tb_pad_mux` | 3 functions on 4 pads: build and elaboration only |
+| `sim_pad_mux_<name>` | `tb_pad_mux` | One target per scenario: `select`, `default`, `output_enable` |
+| `sim_pad_mux_5x2` | `tb_pad_mux` | 5 functions on 2 pads, every scenario |
+| `lint_ghdl` | `asylum.jtag_wrapper` | GHDL `-Wall` analysis and elaboration of [syn/jtag_wrapper.vhd](syn/jtag_wrapper.vhd) |
+| `lint_ghdl_synth_<config>` | `asylum.jtag_wrapper` | `ghdl --synth` check (no latch, synthesizable), configurations `default` and `min` |
+| `syn_<config>` | `asylum.jtag_wrapper` | Synthesis with Yosys, Artix-7 and sky130 (see [Resources](#resources)), same configurations |
+
+Every `sim_*`, `lint_*` and `syn_*` target is a job of the [GitHub CI](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml), run in the [asylum-env](https://github.com/deuskane/asylum-ci) image (GHDL, FuseSoC, UVVM, Yosys). The `sim`, `lint` and `syn` badges count the passed and failed targets of the last run on `main`.
+
+### Mutants
+
+The testbenches were checked with 42 RTL mutants (scratch copies, not in the repository), each scenario run alone in both configurations of its testbench: every mutant is killed.
+
+| Mutant | Killed by | First failed check |
+|--------|-----------|--------------------|
+| Wrong transitions on the BFM path (Update-IR -> Select-DR, Select-IR-Scan -> Run-Test/Idle) | most scenarios / `reset_tms`, `tdr_reset` | `ir_o` changed in Select-IR-Scan; `tlr_o` = 0 in Test-Logic-Reset (model) |
+| Wrong transitions off the BFM path (Pause-DR, Exit2-IR, Exit2-DR, Capture-IR -> Exit1-IR, Update-DR -> Select-DR) | `pause` | outputs against the model (`update_dr_o`, `tdo_en`, `shift_dr_o`, `capture_dr_o`) |
+| TDO not registered, or IR / TDO / `tdo_en` on the rising edge of TCK | every scenario | TDO / `tdo_en` changed while TCK is high |
+| IR not reset to IDCODE in Test-Logic-Reset | `reset_tms` | `ir_o` = IDCODE after the TMS reset |
+| `user_tdo_en_i` ignored | `user`, `tdr_*`, `reset_trst` (ir8) | TDO from `jtag_tdr_in` |
+| `tdo_en`, `shift_dr_o` also high in Exit1-DR; `capture_dr_o` in Capture-IR; `update_dr_o` in Update-IR; `tlr_o` stuck at 0 | most scenarios | outputs against the model |
+| Capture-IR loads all zeros; IR shifted MSB first; IR updated in Exit1-IR | every scenario | Capture-IR check of the BFM; `ir_o` changed in Exit1-IR |
+| BYPASS captures 1; IDCODE not reloaded in Capture-DR | `bypass`, `unclaimed`... / `idcode`, `reset_tms`... | BYPASS scan; IDCODE scan |
+| TRST\* ignored; power-on reset ignored | `reset_trst`, `tdr_reset` / `idcode`, `tdr_*` | `tlr_o` after TRST\*; `ir_o` = IDCODE after the power-on reset |
+| TDR update without select (out, in/out) | `tdr_reset` | `data_o` of a TDR changed in Update-DR (monitor) |
+| TDR capture in Update-DR instead of Capture-DR (in, in/out) | `tdr_in`, `tdr_inout`, `user` | captured value |
+| `data_o` not held: the shift register (out, in/out) | `tdr_*`, `user` | `data_o` of a TDR changed in Shift-DR (monitor) |
+| `jtag_tdr_in` captures without select; `jtag_tdr_out` shifts without select | `tdr_in`, `user` / `bypass`, `idcode`, `tdr_*` | shift register of a TDR changed while not selected (monitor) |
+| `data_o` not cleared in Test-Logic-Reset / by `trst_b`; shift register not cleared by `trst_b`; TDO from the MSB; no shift | `tdr_reset`, `tdr_out`, `tdr_inout`, `tdr_in`, `user` | reset values, scans |
+| Pad multiplexer: default not applied; output enables of function 0 / of the next function; pad outputs of the last function; selected function sees the default | `default` / `output_enable`, `select` / `select` / `default`, `select` | `func_in_o`, `pad_oe_o`, `pad_out_o` checks |
+
+The `pause` scenario was added after the first campaign: the BFM never goes through Pause or Exit2, so mutants of these transitions survived.
+
+### How to Run
+
+From a clone of [asylum-project](https://github.com/deuskane/asylum-project) (GHDL and FuseSoC installed, or in the asylum-env image):
+
+```bash
+make help                        # variables, rules and targets
+make sim_jtag_tdr_inout          # one scenario, log in log/
+make sim_jtag_ir8                # every scenario of a configuration
+make nonreg_sim                  # every sim_* target
+make nonreg_lint                 # every lint_* target
+make nonreg_syn                  # every syn_* target (Yosys, figures of Resources)
+```
+
+To run a list of scenarios, build the testbench once, then run the list without recompiling (same `--build-root` and `--no-export` as the Makefile; any generic of the target can be overridden after the VLNV):
+
+```bash
+make sim_jtag                    # build and elaboration (TESTS_LIST empty)
+fusesoc --cores-root . run --build-root build --no-export --run --target sim_jtag asylum:debug:jtag:1.0.0 --TESTS_LIST=idcode,pause,idcode
+```
+
+To add a scenario: a package `tb_jtag_<name>_pkg` with a procedure `run` (in the `sim_jtag` fileset), its name in `C_TESTS` and its case in `run_test` of [tb_jtag_tests_pkg](sim/jtag/tb_jtag_tests_pkg.vhd), a `sim_jtag_<name>` target and the name in the `TESTS_LIST` of `sim_jtag_ir8` in [jtag.core](jtag.core), then `make mk/targets.txt` and `make ci_generate`.
+
+Outside the CI, GHDL writes a waveform `dut.fst` in the build directory of the target.
+
+## Dependencies and Related IPs
+
+| Core | Repository | Purpose |
+|------|------------|---------|
+| `asylum:verification:uvvm` | [asylum-verification-uvvm](https://github.com/deuskane/asylum-verification-uvvm) | JTAG BFM `jtag_bfm_pkg` of `tb_jtag` (testbench only) |
+| `asylum:utils:pkg` | [asylum-utils-pkg](https://github.com/deuskane/asylum-utils-pkg) | `string_pkg` lists of `TESTS_LIST`, >= 1.10.0 (testbenches only) |
+| `asylum:utils:ghdl_synth` | [asylum-utils-generators](https://github.com/deuskane/asylum-utils-generators) | `ghdl --synth` check of the `lint_ghdl_synth_*` targets |
+| `asylum:utils:yosys_synth` | [asylum-utils-generators](https://github.com/deuskane/asylum-utils-generators) | Yosys synthesis of the `syn_*` targets (Artix-7 and sky130) |
+| `bitvis:verification:uvvm` | [UVVM](https://github.com/UVVM/UVVM) | Verification library (testbenches only) |
+
+The RTL has no dependency. Other Asylum debug IPs: [HWLA](https://github.com/deuskane/asylum-debug-hwla) (logic analyzer). All the IPs: [asylum-project](https://github.com/deuskane/asylum-project).
+
+## Repository Layout
+
+```
+jtag.core               FuseSoC core asylum:debug:jtag
+hdl/                    RTL (library asylum)
+  jtag_pkg.vhd          JTAG pin records, pad_array_t, components
+  jtag_tap.vhd          TAP controller, IR, IDCODE, BYPASS, TDO
+  jtag_tdr_in.vhd       test data register, parallel input
+  jtag_tdr_out.vhd      test data register, parallel output
+  jtag_tdr_inout.vhd    test data register, parallel input and output
+  jtag_pad_mux.vhd      pad multiplexer
+sim/jtag/               tb_jtag: TAP, decoder, TDRs, one package per scenario
+sim/pad_mux/            tb_pad_mux: one package per scenario
+syn/jtag_wrapper.vhd    top of the lint and synthesis targets
+doc/                    drawio block diagram and FSM, WaveDrom DR scan (make -C doc)
+Makefile, mk/           common Makefile of the Asylum IPs, targets list
+.github/workflows/      CI: one job per sim_*, lint_* and syn_* target (make ci_generate)
+```
+
+## License
+
+Apache License 2.0, see [LICENSE](LICENSE).
