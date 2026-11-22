@@ -448,6 +448,147 @@
         <mxCell id="jtag-ov-105" value="pad NB_PAD-1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;" vertex="1" parent="1">
           <mxGeometry x="785" y="720" width="200" height="30" as="geometry"/>
         </mxCell>
+        <mxCell id="jtag-ov-106" value="JTAG over a byte stream (OpenOCD remote_bitbang), clk domain" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;fontSize=10;fontColor=#666666;fontStyle=2;align=center;" vertex="1" parent="1">
+          <mxGeometry x="160" y="820" width="520" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-107" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="160" y="850" width="520" height="210" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-108" value="jtag_bitbang" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="160" y="850" width="100" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-109" value="command decoder&lt;br&gt;&lt;br&gt;'0'..'7': TCK TMS TDI&lt;br&gt;'R': answer TDO&lt;br&gt;'r' 's' 't' 'u': TRST SRST&lt;br&gt;'B' 'b': LED&lt;br&gt;other bytes: ignored" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="320" y="890" width="140" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-110" value="TCK, TMS, TDI" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="500" y="890" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-111" value="TRST, SRST, LED" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="500" y="945" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-112" value="answer valid" style="rounded=0;whiteSpace=wrap;html=1;fontSize=11;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="320" y="1010" width="140" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-113" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="910" as="sourcePoint"/>
+            <mxPoint x="500" y="910" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-114" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="460" y="965" as="sourcePoint"/>
+            <mxPoint x="500" y="965" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-115" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="390" y="990" as="sourcePoint"/>
+            <mxPoint x="390" y="1010" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-116" value="s_axis_tready = 0&lt;br&gt;while an answer&lt;br&gt;is pending" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;fontSize=10;fontColor=#666666;fontStyle=2;align=left;align=center;" vertex="1" parent="1">
+          <mxGeometry x="175" y="930" width="130" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-117" value="&lt;b&gt;uart_rx_axis&lt;/b&gt;&lt;br&gt;(user design)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;dashed=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="-60" y="880" width="140" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-118" value="&lt;b&gt;uart_tx_axis&lt;/b&gt;&lt;br&gt;(user design)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;dashed=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="-60" y="1000" width="140" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-119" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="-120" y="895" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-120" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-100" y="905" as="sourcePoint"/>
+            <mxPoint x="-60" y="905" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-121" value="uart_rx" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;" vertex="1" parent="1">
+          <mxGeometry x="-295" y="890" width="170" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-122" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="-120" y="1015" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-123" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-60" y="1025" as="sourcePoint"/>
+            <mxPoint x="-100" y="1025" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-124" value="uart_tx" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;" vertex="1" parent="1">
+          <mxGeometry x="-295" y="1010" width="170" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-125" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="80" y="905" as="sourcePoint"/>
+            <mxPoint x="320" y="905" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-126" value="s_axis (commands)" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;fontSize=10;align=left;align=center;" vertex="1" parent="1">
+          <mxGeometry x="100" y="880" width="200" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-127" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="320" y="1025" as="sourcePoint"/>
+            <mxPoint x="80" y="1025" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-128" value="m_axis (answers '0' / '1')" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;fontSize=10;align=left;align=center;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1002" width="200" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-129" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="760" y="900" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-130" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="910" as="sourcePoint"/>
+            <mxPoint x="760" y="910" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-131" value="jtag_ini_o: TCK, TMS, TDI, TRST*&lt;br&gt;(to jtag_ini_i of the TAPs)" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;" vertex="1" parent="1">
+          <mxGeometry x="785" y="895" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-132" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="760" y="945" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-133" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="955" as="sourcePoint"/>
+            <mxPoint x="760" y="955" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-134" value="srst_o (system reset request)" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;" vertex="1" parent="1">
+          <mxGeometry x="785" y="940" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-135" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="760" y="965" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-136" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="640" y="975" as="sourcePoint"/>
+            <mxPoint x="760" y="975" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-137" value="blink_o (LED)" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;" vertex="1" parent="1">
+          <mxGeometry x="785" y="960" width="200" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-138" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="760" y="1015" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-139" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="780" y="1025" as="sourcePoint"/>
+            <mxPoint x="460" y="1025" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="jtag-ov-140" value="" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=right;" vertex="1" parent="1">
+          <mxGeometry x="585" y="1010" width="170" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="jtag-ov-141" value="jtag_tgt_i: TDO, tdo_en" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;verticalAlign=middle;rounded=0;align=left;" vertex="1" parent="1">
+          <mxGeometry x="785" y="1010" width="220" height="30" as="geometry"/>
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>

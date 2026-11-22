@@ -32,9 +32,9 @@
 [![sim](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fdeuskane%2Fasylum-debug-jtag%2Fbadges%2Fsim.json)](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml)
 [![syn](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fdeuskane%2Fasylum-debug-jtag%2Fbadges%2Fsyn.json)](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml)
 
-# JTAG TAP, Test Data Registers and Pad Multiplexer
+# JTAG TAP, Test Data Registers, Pad Multiplexer and JTAG over a UART
 
-**A small, readable IEEE 1149.1 JTAG Test Access Port in VHDL: the 16-state TAP controller, IDCODE and BYPASS, user instructions decoded outside the TAP, test data registers of any width, and a generic pad multiplexer to share a few pads between functions.**
+**A small, readable IEEE 1149.1 JTAG Test Access Port in VHDL: the 16-state TAP controller, IDCODE and BYPASS, user instructions decoded outside the TAP, test data registers of any width, a generic pad multiplexer to share a few pads between functions, and a JTAG master driven by the OpenOCD `remote_bitbang` protocol, so that any USB-UART cable becomes a JTAG probe.**
 
 Part of the [Asylum project](https://github.com/deuskane/asylum-project), a collection of small IP cores, written to be read and learned from.
 
@@ -64,8 +64,9 @@ This IP gives the building blocks to put your own registers behind a JTAG port:
 - `jtag_tap` ([hdl/jtag_tap.vhd](hdl/jtag_tap.vhd)): the TAP controller, the IR (`IR_WIDTH` bits), the IDCODE and BYPASS registers and TDO. Your design decodes the user instructions from `ir_o` and gives the TDO of the selected user register (`user_tdo_en_i`, `user_tdo_i`).
 - Three test data registers (TDRs), whose width is the width of their data ports: `jtag_tdr_in` ([hdl/jtag_tdr_in.vhd](hdl/jtag_tdr_in.vhd), parallel input: reads a value), `jtag_tdr_out` ([hdl/jtag_tdr_out.vhd](hdl/jtag_tdr_out.vhd), parallel output: writes a value) and `jtag_tdr_inout` ([hdl/jtag_tdr_inout.vhd](hdl/jtag_tdr_inout.vhd), both).
 - `jtag_pad_mux` ([hdl/jtag_pad_mux.vhd](hdl/jtag_pad_mux.vhd)): a generic multiplexer that lets several functions share a group of pads, for example a UART, a debug UART and a JTAG chain on the four pads of a UART.
+- `jtag_bitbang` ([hdl/jtag_bitbang.vhd](hdl/jtag_bitbang.vhd)): a JTAG master driven by a byte stream, the ASCII protocol of the OpenOCD `remote_bitbang` adapter (one byte per pin change or TDO read). Behind a UART, a plain USB-UART cable and `socat` turn OpenOCD into the debugger of the TAPs of the design: no JTAG probe, no extra pin (see [JTAG over a UART](#jtag-over-a-uart)).
 
-There is no boundary scan: the TAP is a debug and test port for the logic inside the FPGA. Everything runs in the TCK clock domain, the TAP needs no system clock.
+There is no boundary scan: the TAP is a debug and test port for the logic inside the FPGA. The TAP and the TDRs run in the TCK clock domain and need no system clock; `jtag_bitbang` runs in the system clock domain and produces TCK.
 
 ## Features
 
@@ -77,16 +78,18 @@ There is no boundary scan: the TAP is a debug and test port for the logic inside
 - Capture and shift on the rising edge of TCK, IR, TDO and update on the falling edge, `tdo_en` high in Shift-IR / Shift-DR only (tri-state TDO at the pad)
 - Three TDR entities with unconstrained data ports (any width and range); `data_o` held between two Update-DR, cleared by the TAP reset and in Test-Logic-Reset
 - Generic pad multiplexer: `NB_FUNC` functions on `NB_PAD` pads, the unselected functions see `PAD_IN_DEFAULT`
+- `jtag_bitbang`: OpenOCD `remote_bitbang` commands on an 8-bit AXI-Stream input (write TCK / TMS / TDI, read TDO, TRST\* and SRST, LED), answers to the TDO reads on an AXI-Stream output, the other bytes ignored; no UART inside, about 16 LUTs and 7 flip-flops
 - Equivalent to the TAP of the WardRV debug unit (`WardRV_dbg_tap`) with the decoder `user_tdo_en = (ir = DTMCS or ir = DMI)`
 
 ## Block Diagram
 
-![Block diagram of jtag_tap, the TDRs and jtag_pad_mux](doc/jtag-Overview.png)
+![Block diagram of jtag_tap, the TDRs, jtag_pad_mux and jtag_bitbang](doc/jtag-Overview.png)
 
 - `jtag_tap`: the TAP controller follows TMS; the IR, IDCODE and BYPASS registers capture and shift; the TDO multiplexer selects the IR in Shift-IR, else the user register when `user_tdo_en_i = 1`, else IDCODE or BYPASS; TDO is registered on the falling edge of TCK.
 - The user decoder belongs to your design: it compares `ir_o` with the opcodes of its registers, drives the `sel_i` of each TDR, `user_tdo_en_i` and `user_tdo_i` (the `tdo_o` of the selected TDR).
 - The TDRs receive the control outputs of the TAP (`tck_o`, `trst_b_o`, `tlr_o`, `capture_dr_o`, `shift_dr_o`, `update_dr_o`, `tdi_o`).
 - `jtag_pad_mux` is independent of the TAP: it connects one of `NB_FUNC` functions to the pads.
+- `jtag_bitbang` decodes one command byte per handshake of `s_axis` into its registers (TCK, TMS, TDI; TRST\*, SRST, LED) and answers each `'R'` with TDO on `m_axis`. Its `jtag_ini_o` drives the `jtag_ini_i` of the TAPs (or the first TAP of a chain), their `jtag_tgt_o` comes back on `jtag_tgt_i`. The UART is not part of it: `uart_rx_axis` / `uart_tx_axis` of [asylum-communication-uart](https://github.com/deuskane/asylum-communication-uart), or any other byte stream.
 
 ## Getting Started
 
@@ -230,6 +233,130 @@ Three functions on the four pads of a UART, selected by two switches (`00` UART,
 
 Synchronize `switch` before using it, and change it only while the functions are idle: the multiplexer itself has no clock.
 
+### JTAG over a UART
+
+`jtag_bitbang` speaks the protocol of the OpenOCD `remote_bitbang` adapter: OpenOCD sends one ASCII byte per change of the JTAG pins and one byte per TDO read, `jtag_bitbang` drives the pins and answers each read with `'0'` or `'1'`. With a UART in front of it, OpenOCD reaches the TAPs of the design through any USB-UART cable: `socat` links the TCP port of the adapter to the serial port.
+
+| Byte | OpenOCD request | `jtag_bitbang` |
+|------|-----------------|----------------|
+| `'0'` to `'7'` (`x30` to `x37`) | write TCK, TMS, TDI = bits 2, 1, 0 of the byte | `jtag_ini_o.tck`, `.tms`, `.tdi` |
+| `'R'` | read TDO | answer `'0'` or `'1'` on `m_axis`: `jtag_tgt_i.tdo`, `'1'` when `jtag_tgt_i.tdo_en = 0` (a pull-up on the TDO line) |
+| `'r'`, `'s'`, `'t'`, `'u'` | reset: TRST, SRST = 00, 01, 10, 11 (1: asserted) | `jtag_ini_o.trst_n` = not TRST, `srst_o` = SRST |
+| `'B'` / `'b'` | blink on / off | `blink_o` = 1 / 0 |
+| `'Q'` | quit | ignored |
+| `'O'`, `'o'`, `'c'`, `'d'` to `'g'`, `'Z'`, `'z'` | SWD and remote sleep requests of OpenOCD versions after 0.12 | ignored: use `transport select jtag` (an SWD read `'c'` would wait for an answer that never comes); ignoring a sleep request only removes a delay |
+| any other byte | | ignored |
+
+The reset letters follow `remote_bitbang_reset(trst, srst)` of OpenOCD: `'r' + 2*TRST + SRST`, so `'s'` is SRST alone and `'t'` TRST alone (`adapter assert trst` sends `'t'`, checked by the co-simulation).
+
+A UART of [asylum-communication-uart](https://github.com/deuskane/asylum-communication-uart) (`uart_rx_axis`, `uart_tx_axis` and their baud rate generators, 115200 baud at 50 MHz) in front of `jtag_bitbang`, driving the TAP of the example above:
+
+```vhdl
+library asylum;
+use     asylum.jtag_pkg.all;
+use     asylum.uart_pkg.all;
+
+  -- 50 MHz / 115200 baud - 1
+  constant BAUD_TICK_CNT_MAX : std_logic_vector(16-1 downto 0) := std_logic_vector(to_unsigned(433, 16));
+
+  -- RX pad synchronized (uart_rx_axis expects a synchronized input)
+  process(clk, arst_b)
+  begin
+    if arst_b = '0'
+    then
+      uart_rx_sync <= "11";
+    elsif rising_edge(clk)
+    then
+      uart_rx_sync <= uart_rx_sync(0) & uart_rx_i;
+    end if;
+  end process;
+
+  ins_rx_baud : uart_baud_rate_gen
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,baud_tick_en_i          => rx_tick_en
+    ,baud_tick_o             => rx_tick
+    ,baud_tick_half_o        => rx_tick_half
+    ,cfg_baud_tick_cnt_max_i => BAUD_TICK_CNT_MAX
+    );
+
+  ins_rx : uart_rx_axis
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,uart_rx_i               => uart_rx_sync(1)
+    ,m_axis_tdata_o          => cmd_tdata          -- commands of OpenOCD
+    ,m_axis_parity_error_o   => open
+    ,m_axis_tvalid_o         => cmd_tvalid
+    ,m_axis_tready_i         => cmd_tready
+    ,baud_tick_i             => rx_tick
+    ,baud_tick_half_i        => rx_tick_half
+    ,baud_tick_en_o          => rx_tick_en
+    ,parity_enable_i         => '0'
+    ,parity_odd_i            => '0'
+    ,last_parity_error_o     => open
+    ,err_overrun_o           => open
+    ,err_parity_o            => open
+    ,err_framing_o           => open
+    ,err_break_o             => open
+    ,debug_o                 => open
+    );
+
+  ins_bitbang : jtag_bitbang
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,s_axis_tdata_i          => cmd_tdata
+    ,s_axis_tvalid_i         => cmd_tvalid
+    ,s_axis_tready_o         => cmd_tready
+    ,m_axis_tdata_o          => answer_tdata       -- '0' or '1'
+    ,m_axis_tvalid_o         => answer_tvalid
+    ,m_axis_tready_i         => answer_tready
+    ,jtag_ini_o              => jtag_ini           -- to jtag_ini_i of jtag_tap
+    ,jtag_tgt_i              => jtag_tgt           -- from jtag_tgt_o of jtag_tap
+    ,srst_o                  => srst               -- system reset request
+    ,blink_o                 => led
+    );
+
+  ins_tx_baud : uart_baud_rate_gen
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,baud_tick_en_i          => '1'
+    ,baud_tick_o             => tx_tick
+    ,baud_tick_half_o        => open
+    ,cfg_baud_tick_cnt_max_i => BAUD_TICK_CNT_MAX
+    );
+
+  ins_tx : uart_tx_axis
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,s_axis_tdata_i          => answer_tdata
+    ,s_axis_tvalid_i         => answer_tvalid
+    ,s_axis_tready_o         => answer_tready
+    ,uart_tx_o               => uart_tx_o
+    ,uart_cts_b_i            => '0'
+    ,baud_tick_i             => tx_tick
+    ,parity_enable_i         => '0'
+    ,parity_odd_i            => '0'
+    ,debug_o                 => open
+    );
+```
+
+On the host, `socat` links the TCP port 4444 to the cable, and OpenOCD uses the `remote_bitbang` adapter on that port (a configuration in the style of [sim/openocd/jtag.cfg](sim/openocd/jtag.cfg), with the IR length and IDCODE of your TAP):
+
+```bash
+socat TCP-LISTEN:4444,reuseaddr /dev/ttyUSB0,raw,echo=0,b115200 &
+openocd -c "adapter driver remote_bitbang; remote_bitbang host 127.0.0.1; remote_bitbang port 4444" \
+        -c "transport select jtag; reset_config trst_and_srst" \
+        -c "jtag newtap my tap -irlen 5 -expected-id 0x10000001" \
+        -c "init; irscan my.tap 2; echo [drscan my.tap 16 0]; shutdown"
+```
+
+Speed at 115200 baud: 11520 bytes/s. A shifted bit read by OpenOCD costs 3 bytes (TCK low with TMS and TDI, `'R'`, TCK high), a TMS move or a write-only bit 2 bytes: TCK is about 3.8 kHz during the scans with read and 5.8 kHz otherwise, and an IDCODE read (about 110 bytes) takes about 10 ms. The answers go back on the other line at one byte per three, never the limit. The speed scales with the baud rate (8 times faster at 921600 baud); `jtag_bitbang` itself takes one byte per clock cycle (two for `'R'`), and `adapter speed` of OpenOCD has no effect with this adapter.
+
 ## Hardware Interfaces
 
 Types of [hdl/jtag_pkg.vhd](hdl/jtag_pkg.vhd): `jtag_ini_t` (JTAG pins from the debugger: `tck`, `trst_n`, `tms`, `tdi`), `jtag_tgt_t` (to the debugger: `tdo`, `tdo_en`), `pad_array_t` (array of `std_logic_vector`: one element per function, one bit per pad).
@@ -282,6 +409,19 @@ The three TDRs have the same TAP ports; `jtag_tdr_in` has no `tlr_i`.
 | `pad_oe_o` | out | std_logic_vector(NB_PAD-1 downto 0) | Pad output enables of the selected function |
 | `pad_in_i` | in | std_logic_vector(NB_PAD-1 downto 0) | Pad inputs |
 
+### jtag_bitbang
+
+| Name | Direction | Type | Description |
+|------|-----------|------|-------------|
+| `clk_i` | in | std_logic | System clock: commands, answers and the JTAG pins (TCK is a register of this domain) |
+| `arst_b_i` | in | std_logic | Asynchronous reset, active low: TCK 0, TMS 1, TDI 0, TRST\* and SRST released, LED off, no answer pending |
+| `s_axis_tdata_i` / `s_axis_tvalid_i` / `s_axis_tready_o` | in / in / out | std_logic_vector(8-1 downto 0) / std_logic / std_logic | Commands of OpenOCD, one byte per handshake; `s_axis_tready_o` is low while an answer is pending |
+| `m_axis_tdata_o` / `m_axis_tvalid_o` / `m_axis_tready_i` | out / out / in | std_logic_vector(8-1 downto 0) / std_logic / std_logic | Answer to `'R'`: `'0'` (`x30`) or `'1'` (`x31`), held until taken |
+| `jtag_ini_o` | out | jtag_ini_t | JTAG pins to the TAPs: TCK, TRST\* (active low), TMS, TDI |
+| `jtag_tgt_i` | in | jtag_tgt_t | TDO and `tdo_en` of the TAPs (TDO read as 1 when `tdo_en = 0`) |
+| `srst_o` | out | std_logic | System reset request (SRST), active high: reset the system with it, not the TAPs |
+| `blink_o` | out | std_logic | LED, switched on by OpenOCD while it runs a JTAG queue |
+
 ## Configuration
 
 Generics of `jtag_tap`:
@@ -294,6 +434,8 @@ Generics of `jtag_tap`:
 
 The TDRs have no generic: their width is the width of the actual of `data_i` (`jtag_tdr_in`, `jtag_tdr_inout`) or `data_o` (`jtag_tdr_out`).
 
+`jtag_bitbang` has no generic.
+
 Generics of `jtag_pad_mux`:
 
 | Name | Type | Default | Description |
@@ -304,14 +446,15 @@ Generics of `jtag_pad_mux`:
 
 ## Resources
 
-Figures of the `syn_*` targets (`make nonreg_syn`, see [Targets](#targets)): [syn/jtag_wrapper.vhd](syn/jtag_wrapper.vhd) (TAP, a user decoder, one TDR of each kind and a pad multiplexer) with the generics of each configuration, synthesized by Yosys and its GHDL plugin; the reports are in the build directory of each target.
+Figures of the `syn_*` targets (`make nonreg_syn`, see [Targets](#targets)): [syn/jtag_wrapper.vhd](syn/jtag_wrapper.vhd) (TAP, a user decoder, one TDR of each kind and a pad multiplexer) with the generics of each configuration, and `jtag_bitbang` alone (`syn_bitbang`, its own figures: add them to those of the TAPs it drives and of the UART), synthesized by Yosys and its GHDL plugin; the reports are in the build directory of each target.
 
 | Configuration | LUT¹ | LUTRAM¹ | FF¹ | CARRY4¹ | MUXF7/F8¹ | BRAM¹ | DSP¹ | Area² (µm²) | kGE³ |
 |---|---|---|---|---|---|---|---|---|---|
 | `syn_default` (5-bit IR, TRST\*, TDRs of 16 (in), 8 (out), 8 (in/out) bits, 3 functions on 4 pads) | 128 | 0 | 96 | 0 | 4 | 0 | 0 | 4244.07 | 1.131 |
 | `syn_min` (3-bit IR, no TRST\*, 1-bit TDRs, 2 functions on 1 pad) | 64 | 0 | 49 | 0 | 0 | 0 | 0 | 2155.82 | 0.574 |
+| `syn_bitbang` (`jtag_bitbang` alone) | 16 | 0 | 7 | 0 | 0 | 0 | 0 | 350.34 | 0.093 |
 
-¹ Xilinx Artix-7 (LUT6), Yosys 0.33 `synth_xilinx -flatten -noiopad -noclkbuf`, before place and route: every cell of the netlist is counted, Vivado may differ. Identical cells are merged as a vendor tool does (`opt_merge -share_all`); every remaining cell is counted, an `INV` as a `LUT1`. There is no memory: every register is in flip-flops; the 32-bit IDCODE register and the TDRs are most of them, the registers updated on the falling edge of TCK are `FDCE_1` / `FDPE_1`.
+¹ Xilinx Artix-7 (LUT6), Yosys 0.33 `synth_xilinx -flatten -noiopad -noclkbuf`, before place and route: every cell of the netlist is counted, Vivado may differ. Identical cells are merged as a vendor tool does (`opt_merge -share_all`); every remaining cell is counted, an `INV` as a `LUT1`. There is no memory: every register is in flip-flops; the 32-bit IDCODE register and the TDRs are most of them, the registers updated on the falling edge of TCK are `FDCE_1` / `FDPE_1`. `syn_bitbang`: 7 flip-flops (`FDCE` 6, `FDPE` 1: TMS resets to 1) and 16 LUTs, 3 of them `INV`.
 
 ² SkyWater sky130 `sky130_fd_sc_hd`, typical corner (tt, 25 °C, 1.80 V), Yosys 0.33 `synth` + `dfflibmap` + `abc -liberty`: standard-cell area only, no timing constraint, no buffering, clock tree or placement.
 
@@ -365,6 +508,18 @@ Clock domains: `data_o` changes on the falling edge of TCK and `data_i` is sampl
 
 `jtag_pad_mux` is combinational: `pad_out_o` and `pad_oe_o` are the outputs and output enables of the function `sel_i`, `func_in_o(sel_i)` is `pad_in_i` and every other function sees `PAD_IN_DEFAULT`. The output enables tell the top-level pads which ones to drive (an inout pad, or a tri-state output such as TDO); an output-only pad may ignore them.
 
+### JTAG over a byte stream (jtag_bitbang)
+
+`jtag_bitbang` takes a command when `s_axis_tvalid_i = 1` and `s_axis_tready_o = 1` and executes it on the same clock edge: a write command loads TCK, TMS and TDI together, `'R'` sets `m_axis_tvalid_o`, a reset or blink command loads its register, any other byte is dropped. `m_axis_tdata_o` is `'0'` or `'1'` from TDO, combinational; it cannot change while the answer is pending, since `s_axis_tready_o = 0` until the answer is taken: no command is lost, the answers keep the order of the reads and no new TCK edge happens.
+
+TCK is a register of the `clk_i` domain: the TAPs see a clock derived from data, at most `f_clk / 2` (a write command per clock cycle), in practice the byte rate of the link divided by 2 or 3. OpenOCD changes TMS and TDI with TCK low, one command before the rising edge of TCK (TMS and TDI are stable at least one clock cycle before it), and reads TDO with a command after the falling edge of TCK (`jtag_tap` updates TDO on that edge, the answer is sampled at least two clock cycles later). On an FPGA:
+
+- give TCK its own clock net (the tools usually promote a register output used as a clock to a global buffer) and declare it, for example with Vivado `create_generated_clock -name tck -source [get_pins <clk pin of tck_r>] -divide_by 2 [get_pins <tck_r>/Q]`, so that the paths between `clk_i` and TCK are timed with a TCK period of two clock cycles;
+- or declare the `clk_i` <-> TCK paths as false paths: the protocol leaves at least one clock cycle on each side;
+- the TDRs of the TAPs are in the TCK domain: synchronize their `data_o` into the system domain as for an external probe (see [Test data registers](#test-data-registers)).
+
+`srst_o` is a request in the `clk_i` domain: combine it with the reset of the system (not of `jtag_bitbang` or of the TAPs, so that OpenOCD keeps the link). Without `reset_config trst_and_srst` (or `srst_only`) OpenOCD never sends SRST.
+
 ## Registers
 
 This IP has no software-visible registers: the registers are reached through JTAG (see [Instructions](#instructions)).
@@ -381,6 +536,8 @@ This IP has no software-visible registers: a JTAG adapter scans the user registe
 |------|-----|-------------|
 | [sim/jtag/tb_jtag.vhd](sim/jtag/tb_jtag.vhd) | `jtag_tap`, a user decoder, `jtag_tdr_in`, `jtag_tdr_out`, `jtag_tdr_inout` | Self-checking UVVM testbench driven by the JTAG BFM `jtag_bfm_pkg` of [asylum-verification-uvvm](https://github.com/deuskane/asylum-verification-uvvm) (TCK 100 ns). The decoder claims one opcode per TDR (2 in, 3 out, 4 in/out), every other opcode is BYPASS. Generics `TESTS_LIST`, `IR_WIDTH`, `TRST_ENABLE`, `TDR_IN_WIDTH`, `TDR_OUT_WIDTH`, `TDR_INOUT_WIDTH`. Monitors (silent, an alert on error): a reference model of the TAP controller, against which `capture_dr_o`, `shift_dr_o`, `update_dr_o`, `tlr_o` and `tdo_en` are checked at each rising edge of TCK; TDO and `tdo_en` change on the falling edge of TCK only; `ir_o` changes in Update-IR / Test-Logic-Reset only; the bits shifted out by each IR scan and the TCK cycles with `tdo_en = 1` of each scan; the shift register (`tdo_o`) of a TDR does not change while it is not selected; `data_o` of a TDR changes only in Update-DR while selected or in Test-Logic-Reset. One package per scenario (`tb_jtag_<name>_pkg`), names and dispatch in [tb_jtag_tests_pkg](sim/jtag/tb_jtag_tests_pkg.vhd), helpers (configuration, model, BFM calls, data patterns) in [tb_jtag_bfm_pkg](sim/jtag/tb_jtag_bfm_pkg.vhd) |
 | [sim/pad_mux/tb_pad_mux.vhd](sim/pad_mux/tb_pad_mux.vhd) | `jtag_pad_mux` | Self-checking UVVM testbench, generics `TESTS_LIST`, `NB_FUNC`, `NB_PAD`; `PAD_IN_DEFAULT` mixes 0 and 1 bits. The DUT is combinational: no clock, the checks are made 10 ns after each change of the inputs |
+| [sim/bitbang/tb_bitbang.vhd](sim/bitbang/tb_bitbang.vhd) | `jtag_bitbang` driving the real `jtag_tap` (5-bit IR) and a `jtag_tdr_inout` of 8 bits (opcode 2) | Self-checking UVVM testbench, clk 100 MHz, generic `TESTS_LIST`. The commands are the bytes OpenOCD 0.12 sends: [tb_bitbang_bfm_pkg](sim/bitbang/tb_bitbang_bfm_pkg.vhd) turns a TMS sequence, an IR or DR scan and a TDO read into them as the `bitbang` driver of OpenOCD does (TCK low with TMS and TDI, `'R'`, TCK high for each scanned bit), sent on `s_axis`, or through a UART in the scenario `uart` (UVVM UART BFM -> `uart_rx_axis` -> `jtag_bitbang` -> `uart_tx_axis` -> UVVM UART BFM, 16 clock cycles per bit, back-to-back frames). Monitors: each answer is `'0'` or `'1'`, a pending answer (`m_axis_tvalid_o = 1`, `m_axis_tready_i = 0`) stays valid and unchanged; in `uart`, an overrun or framing error of `uart_rx_axis` is an error |
+| [sim/openocd/tb_bitbang_openocd.vhd](sim/openocd/tb_bitbang_openocd.vhd) | `jtag_bitbang`, `jtag_tap`, a `jtag_tdr_inout` (`data_o` looped back to `data_i`) | Co-simulation with OpenOCD 0.12: [rbb_server.c](sim/openocd/rbb_server.c) (GHDL VHPIDIRECT, [rbb_pkg](sim/openocd/rbb_pkg.vhd)) passes the bytes of the `remote_bitbang` adapter (TCP) to `s_axis` and the answers back. OpenOCD runs [jtag.cfg](sim/openocd/jtag.cfg): scan of the chain with `-expected-id`, IDCODE by a DR scan, three DR scans of the TDR (each returns the previous data), `adapter assert trst` (the TDR is cleared), `adapter assert srst`; the testbench checks that OpenOCD used `'R'`, TRST, SRST and the LED. Hooks in [cosim.sh](sim/openocd/cosim.sh) (builds `librbb.so`, starts OpenOCD in the background, checks its log); needs `openocd` and `gcc` (the asylum-env image has them) |
 
 ### Scenarios (`TESTS_LIST`)
 
@@ -406,6 +563,16 @@ Checks counted as the `=> OK` lines of the log, reference configurations.
 | `tb_pad_mux` | `select` | 12 | Each function selected: pads driven by its outputs and output enables, it sees the pad inputs (two values) |
 | `tb_pad_mux` | `default` | 9 | Each function selected: every other function sees `PAD_IN_DEFAULT` |
 | `tb_pad_mux` | `output_enable` | 6 | Output enables of the selected function only (low while the others are high, and the opposite) |
+| `tb_bitbang` | `write` | 21 | Reset values of TCK, TMS, TDI (0, 1, 0); `'0'` to `'7'` then `'7'` to `'0'`: TCK, TMS, TDI = bits 2, 1, 0; TRST\*, SRST, LED unchanged, no answer |
+| `tb_bitbang` | `read` | 8 | `'R'`: `'1'` with TDO not driven (Test-Logic-Reset and Run-Test/Idle, the TDO register of the TAP at 0: pull-up), Capture-IR `0...01` read during an IR scan, DR scan through BYPASS, one `'R'` per TDO value in Shift-DR |
+| `tb_bitbang` | `reset` | 19 | `'t'` (TRST\*: the TAP goes to Test-Logic-Reset), `'r'`, `'s'` (SRST: the TAP stays in Run-Test/Idle), `'u'`, `'r'`; TCK, TMS, TDI unchanged |
+| `tb_bitbang` | `blink` | 8 | `'B'`, `'B'`, `'b'`, `'b'`: LED on, off; the other outputs unchanged |
+| `tb_bitbang` | `ignored` | 6 | The 241 other bytes (`'Q'`, SWD and sleep requests, every other value) sent in two states of the outputs: no output changes and no answer after any of them (checked after each byte, silent), `s_axis_tready_o` stays high |
+| `tb_bitbang` | `backpressure` | 14 | `m_axis_tready_i` low: the answer stays pending, `s_axis_tready_o` low, a write command waits; each answer taken once, a second `'R'` waits for the first answer |
+| `tb_bitbang` | `idcode` | 6 | TMS reset (5 TCK with TMS = 1), IDCODE read by a DR scan, IR scans of BYPASS and IDCODE (Capture-IR read, `ir_o`), IDCODE again |
+| `tb_bitbang` | `dr_scan` | 6 | IR scan of the TDR opcode, two DR scans: `data_i` captured and read by `'R'`, `data_o` updated with the bits shifted in |
+| `tb_bitbang` | `uart` | 18 | Through the UART: LED, IDCODE read, DR scan of the TDR, `'t'` (TRST\*, Test-Logic-Reset), `'s'`, `'r'`, `'b'` |
+| `tb_bitbang_openocd` | (`sim_openocd`) | 4 | OpenOCD read TDO, asserted TRST and SRST, switched the LED on; the 5 checks of OpenOCD (`OK :` lines of `openocd.log`) and its `SCENARIO PASS` decide the result of the target |
 
 Configurations (generics of the targets):
 
@@ -415,6 +582,7 @@ Configurations (generics of the targets):
 | `tb_jtag` | `ir8` | `IR_WIDTH = 8`, `TRST_ENABLE = false`, TDRs of 1 (in), 33 (out), 5 (in/out) bits | 133 |
 | `tb_pad_mux` | reference (`sim_pad_mux_<name>`) | 3 functions on 4 pads | 27 (3 scenarios) |
 | `tb_pad_mux` | `5x2` | 5 functions on 2 pads | 55 |
+| `tb_bitbang` | reference (`sim_bitbang_<name>`), no generic | | 106 (9 scenarios) |
 
 ### Targets
 
@@ -427,9 +595,14 @@ Configurations (generics of the targets):
 | `sim_pad_mux` | `tb_pad_mux` | 3 functions on 4 pads: build and elaboration only |
 | `sim_pad_mux_<name>` | `tb_pad_mux` | One target per scenario: `select`, `default`, `output_enable` |
 | `sim_pad_mux_5x2` | `tb_pad_mux` | 5 functions on 2 pads, every scenario |
+| `sim_bitbang` | `tb_bitbang` | Build and elaboration only (`TESTS_LIST` empty) |
+| `sim_bitbang_<name>` | `tb_bitbang` | One target per scenario (9 targets) |
+| `sim_openocd` | `tb_bitbang_openocd` | Co-simulation with OpenOCD (`remote_bitbang` over TCP) |
 | `lint_ghdl` | `asylum.jtag_wrapper` | GHDL `-Wall` analysis and elaboration of [syn/jtag_wrapper.vhd](syn/jtag_wrapper.vhd) |
 | `lint_ghdl_synth_<config>` | `asylum.jtag_wrapper` | `ghdl --synth` check (no latch, synthesizable), configurations `default` and `min` |
+| `lint_ghdl_synth_bitbang` | `asylum.jtag_bitbang` | `ghdl --synth` check of `jtag_bitbang` |
 | `syn_<config>` | `asylum.jtag_wrapper` | Synthesis with Yosys, Artix-7 and sky130 (see [Resources](#resources)), same configurations |
+| `syn_bitbang` | `asylum.jtag_bitbang` | Synthesis of `jtag_bitbang` |
 
 Every `sim_*`, `lint_*` and `syn_*` target is a job of the [GitHub CI](https://github.com/deuskane/asylum-debug-jtag/actions/workflows/ci.yml), run in the [asylum-env](https://github.com/deuskane/asylum-ci) image (GHDL, FuseSoC, UVVM, Yosys). The `sim`, `lint` and `syn` badges count the passed and failed targets of the last run on `main`.
 
@@ -457,6 +630,24 @@ The testbenches were checked with 42 RTL mutants (scratch copies, not in the rep
 
 The `pause` scenario was added after the first campaign: the BFM never goes through Pause or Exit2, so mutants of these transitions survived.
 
+`tb_bitbang` was checked with 24 mutants of `jtag_bitbang`, each scenario run alone: every mutant is killed, the unmutated RTL passes every scenario.
+
+| Mutant of `jtag_bitbang` | Killed by | First failed check |
+|--------------------------|-----------|--------------------|
+| TCK, TMS, TDI bits swapped (3 mutants) | `write`, `read`, `idcode`, `dr_scan`, `uart`... | TCK, TMS, TDI after a write command |
+| Write commands `'0'` to `'?'` | `ignored` | byte `x38` not ignored |
+| `'R'` answers the inverted TDO | `read`, `idcode`, `dr_scan`, `backpressure`, `uart` | `'R'` with TDO not driven |
+| No pull-up, or a pull-down, when `tdo_en = 0` | `read`, `backpressure` | `'R'` with TDO not driven |
+| Answer lost under back-pressure (`tvalid` cleared without `tready`) | `backpressure` | pending answer lost (monitor) |
+| `s_axis_tready_o` not held while an answer is pending | `backpressure` | `s_axis_tready_o` low while the answer is pending |
+| Answer never cleared | `read`, `idcode`, `dr_scan`, `backpressure`, `uart` | command not taken (`s_axis_tready_o` low) |
+| Command taken without `s_axis_tvalid_i` | `backpressure`, `uart` | no answer left |
+| TRST\* or SRST polarity inverted | most scenarios | TRST\* / SRST not asserted by the write commands |
+| `'s'` and `'t'` swapped; `'r'` keeps SRST; `'u'` asserts TRST only | `reset` (and `ignored`, `uart`) | TRST\* after `'t'`; SRST after `'r'`; SRST after `'u'` |
+| `'B'` and `'b'` swapped; `'b'` ignored | `blink`, `ignored`, `uart` | LED after `'B'` / `'b'` |
+| Other bytes decoded as writes or answered as `'R'`; `'Q'` switches the LED off; `'c'` answered | `ignored` | byte not ignored |
+| TMS reset value 0; TCK reset value 1 | `write`, `blink`, `backpressure` | TCK, TMS, TDI after the reset |
+
 ### How to Run
 
 From a clone of [asylum-project](https://github.com/deuskane/asylum-project) (GHDL and FuseSoC installed, or in the asylum-env image):
@@ -465,6 +656,7 @@ From a clone of [asylum-project](https://github.com/deuskane/asylum-project) (GH
 make help                        # variables, rules and targets
 make sim_jtag_tdr_inout          # one scenario, log in log/
 make sim_jtag_ir8                # every scenario of a configuration
+make sim_openocd                 # co-simulation with OpenOCD (needs openocd and gcc)
 make nonreg_sim                  # every sim_* target
 make nonreg_lint                 # every lint_* target
 make nonreg_syn                  # every syn_* target (Yosys, figures of Resources)
@@ -485,13 +677,16 @@ Outside the CI, GHDL writes a waveform `dut.fst` in the build directory of the t
 
 | Core | Repository | Purpose |
 |------|------------|---------|
+| `asylum:communication:uart` | [asylum-communication-uart](https://github.com/deuskane/asylum-communication-uart) | `uart_rx_axis`, `uart_tx_axis`, `uart_baud_rate_gen` of the scenario `uart` of `tb_bitbang`, >= 3.0.0 (testbench only) |
 | `asylum:verification:uvvm` | [asylum-verification-uvvm](https://github.com/deuskane/asylum-verification-uvvm) | JTAG BFM `jtag_bfm_pkg` of `tb_jtag` (testbench only) |
 | `asylum:utils:pkg` | [asylum-utils-pkg](https://github.com/deuskane/asylum-utils-pkg) | `string_pkg` lists of `TESTS_LIST`, >= 1.10.0 (testbenches only) |
 | `asylum:utils:ghdl_synth` | [asylum-utils-generators](https://github.com/deuskane/asylum-utils-generators) | `ghdl --synth` check of the `lint_ghdl_synth_*` targets |
 | `asylum:utils:yosys_synth` | [asylum-utils-generators](https://github.com/deuskane/asylum-utils-generators) | Yosys synthesis of the `syn_*` targets (Artix-7 and sky130) |
-| `bitvis:verification:uvvm` | [UVVM](https://github.com/UVVM/UVVM) | Verification library (testbenches only) |
+| `bitvis:verification:uvvm` | [UVVM](https://github.com/UVVM/UVVM) | Verification library, UART BFM of `tb_bitbang` (testbenches only) |
 
-The RTL has no dependency. Other Asylum debug IPs: [HWLA](https://github.com/deuskane/asylum-debug-hwla) (logic analyzer). All the IPs: [asylum-project](https://github.com/deuskane/asylum-project).
+`sim_openocd` also needs `openocd` (0.12) and `gcc` on the machine that runs it (in the asylum-env image).
+
+The RTL has no dependency: `jtag_bitbang` has no UART inside, the user design chooses the byte stream. Other Asylum debug IPs: [HWLA](https://github.com/deuskane/asylum-debug-hwla) (logic analyzer). All the IPs: [asylum-project](https://github.com/deuskane/asylum-project).
 
 ## Repository Layout
 
@@ -504,8 +699,11 @@ hdl/                    RTL (library asylum)
   jtag_tdr_out.vhd      test data register, parallel output
   jtag_tdr_inout.vhd    test data register, parallel input and output
   jtag_pad_mux.vhd      pad multiplexer
+  jtag_bitbang.vhd      JTAG master driven by the OpenOCD remote_bitbang byte stream
 sim/jtag/               tb_jtag: TAP, decoder, TDRs, one package per scenario
 sim/pad_mux/            tb_pad_mux: one package per scenario
+sim/bitbang/            tb_bitbang: jtag_bitbang, TAP, TDR, UART, one package per scenario
+sim/openocd/            tb_bitbang_openocd: co-simulation with OpenOCD (remote_bitbang over TCP)
 syn/jtag_wrapper.vhd    top of the lint and synthesis targets
 doc/                    drawio block diagram and FSM, WaveDrom DR scan (make -C doc)
 Makefile, mk/           common Makefile of the Asylum IPs, targets list
