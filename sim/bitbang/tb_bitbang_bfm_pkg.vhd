@@ -41,7 +41,7 @@ package tb_bitbang_bfm_pkg is
   constant C_TB_SCOPE     : string   := "TB_BITBANG";    -- Scope of the scenarios (C_SCOPE of uvvm_util is hidden by the C_SCOPE of the testbench)
 
   constant C_CLK_PERIOD   : time     := 10 ns;
-  constant C_TIMEOUT      : time     := 1 ms;            -- Wait of the answers to 'R'
+  constant C_TIMEOUT      : time     := 1 ms;            -- Wait of s_axis_tready and of the answers to 'R'
 
   -- TAP of the testbench : IR of 5 bits, IDCODE ("00001"), BYPASS (all
   -- ones), one jtag_tdr_inout of 8 bits selected by C_IR_TDR
@@ -208,7 +208,11 @@ package body tb_bitbang_bfm_pkg is
     else
       tb_req.s_tdata  <= to_byte(cmd);
       tb_req.s_tvalid <= '1';
-      wait until rising_edge(clk) and tb_rsp.s_tready = '1';
+      wait until rising_edge(clk) and tb_rsp.s_tready = '1' for C_TIMEOUT;
+      if not (rising_edge(clk) and tb_rsp.s_tready = '1')
+      then
+        alert(ERROR, "Command '" & cmd & "' not taken (s_axis_tready low)", C_TB_SCOPE);
+      end if;
       tb_req.s_tvalid <= '0';
     end if;
   end procedure tb_send;

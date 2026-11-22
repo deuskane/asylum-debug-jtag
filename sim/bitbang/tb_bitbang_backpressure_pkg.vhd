@@ -67,7 +67,7 @@ package body tb_bitbang_backpressure_pkg is
 
     -- Answer taken, then the write command
     tb_req.m_tready <= '1';
-    wait until rising_edge(clk) and tb_rsp.s_tready = '1';
+    wait until rising_edge(clk) and tb_rsp.s_tready = '1' for C_TIMEOUT;
     tb_req.s_tvalid <= '0';
     wait until falling_edge(clk);
     check_value(tb_rsp.answer_cnt, 1           , ERROR, "Answer taken once"           , C_TB_SCOPE);
@@ -84,7 +84,7 @@ package body tb_bitbang_backpressure_pkg is
     end loop;
     check_value(tb_rsp.s_tready  , '0'         , ERROR, "Second 'R' waits for the first answer", C_TB_SCOPE);
     tb_req.m_tready <= '1';
-    wait until rising_edge(clk) and tb_rsp.s_tready = '1';
+    wait until rising_edge(clk) and tb_rsp.s_tready = '1' for C_TIMEOUT;
     tb_req.s_tvalid <= '0';
     tb_req.m_tready <= '0';
     for i in 1 to 5 loop
