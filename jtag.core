@@ -17,9 +17,13 @@ CAPI=2:
 # Revisions  :
 # Date        Version  Author   Description
 # 2026-11-22  1.0.0    mrosiere Created
+# 2026-11-22  1.1.0    mrosiere jtag_bitbang : JTAG master driven by the OpenOCD
+#                               remote_bitbang byte stream (JTAG over a UART),
+#                               sim_bitbang_*, sim_openocd, lint_ghdl_synth_bitbang,
+#                               syn_bitbang
 #-----------------------------------------------------------------------------
 
-name        : asylum:debug:jtag:1.0.0
+name        : asylum:debug:jtag:1.1.0
 description : JTAG TAP, test data registers and pad multiplexer
 
 #=========================================
