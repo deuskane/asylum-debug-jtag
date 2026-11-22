@@ -57,7 +57,7 @@ package body tb_jtag_reset_tms_pkg is
     type opcodes_t is array (natural range <>) of natural;
     variable v_opcodes   : opcodes_t(0 to 2);
   begin
-    v_opcodes := (ir_bypass(cfg), C_IR_USER, C_IR_UNCLAIMED);
+    v_opcodes := (ir_bypass(cfg), C_IR_TDR_INOUT, C_IR_UNCLAIMED);
     for i in v_opcodes'range loop
       tb_write_ir(v_opcodes(i), "Instruction before the TMS reset", jtag_if, tb_rsp, cfg);
       tb_reset(false, "5 TMS = 1, no TRST*", jtag_if, cfg);

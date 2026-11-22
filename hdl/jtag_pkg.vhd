@@ -11,7 +11,7 @@
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description: Types and components of the JTAG IP : JTAG pins (jtag_ini_t,
---              jtag_tgt_t)
+--              jtag_tgt_t), TAP, test data registers
 -------------------------------------------------------------------------------
 -- Copyright (c) 2026
 -------------------------------------------------------------------------------
@@ -66,6 +66,57 @@ component jtag_tap is
    ;user_tdo_i     : in  std_logic                                -- LSB of the selected user register
   );
 end component jtag_tap;
+
+component jtag_tdr_in is
+  port (
+    -- TAP (TCK domain, outputs of jtag_tap)
+    tck_i          : in  std_logic
+   ;trst_b_i       : in  std_logic                                -- Power-on reset and TRST*, active low
+   ;sel_i          : in  std_logic                                -- 1 : register selected by the instruction
+   ;capture_dr_i   : in  std_logic                                -- Capture-DR
+   ;shift_dr_i     : in  std_logic                                -- Shift-DR
+   ;update_dr_i    : in  std_logic                                -- Update-DR (not used, same ports as the other TDRs)
+   ;tdi_i          : in  std_logic
+   ;tdo_o          : out std_logic                                -- LSB of the shift register, to user_tdo_i
+    -- Parallel interface (TCK domain)
+   ;data_i         : in  std_logic_vector                         -- Captured in Capture-DR (any width and range)
+  );
+end component jtag_tdr_in;
+
+component jtag_tdr_out is
+  port (
+    -- TAP (TCK domain, outputs of jtag_tap)
+    tck_i          : in  std_logic
+   ;trst_b_i       : in  std_logic                                -- Power-on reset and TRST*, active low
+   ;tlr_i          : in  std_logic                                -- Test-Logic-Reset
+   ;sel_i          : in  std_logic                                -- 1 : register selected by the instruction
+   ;capture_dr_i   : in  std_logic                                -- Capture-DR (not used, same ports as the other TDRs)
+   ;shift_dr_i     : in  std_logic                                -- Shift-DR
+   ;update_dr_i    : in  std_logic                                -- Update-DR
+   ;tdi_i          : in  std_logic
+   ;tdo_o          : out std_logic                                -- LSB of the shift register, to user_tdo_i
+    -- Parallel interface (TCK domain)
+   ;data_o         : out std_logic_vector                         -- Updated in Update-DR (any width and range)
+  );
+end component jtag_tdr_out;
+
+component jtag_tdr_inout is
+  port (
+    -- TAP (TCK domain, outputs of jtag_tap)
+    tck_i          : in  std_logic
+   ;trst_b_i       : in  std_logic                                -- Power-on reset and TRST*, active low
+   ;tlr_i          : in  std_logic                                -- Test-Logic-Reset
+   ;sel_i          : in  std_logic                                -- 1 : register selected by the instruction
+   ;capture_dr_i   : in  std_logic                                -- Capture-DR
+   ;shift_dr_i     : in  std_logic                                -- Shift-DR
+   ;update_dr_i    : in  std_logic                                -- Update-DR
+   ;tdi_i          : in  std_logic
+   ;tdo_o          : out std_logic                                -- LSB of the shift register, to user_tdo_i
+    -- Parallel interface (TCK domain)
+   ;data_i         : in  std_logic_vector                         -- Captured in Capture-DR (any width and range)
+   ;data_o         : out std_logic_vector                         -- Updated in Update-DR (width of data_i)
+  );
+end component jtag_tdr_inout;
 
 -- [COMPONENT_INSERT][END]
 

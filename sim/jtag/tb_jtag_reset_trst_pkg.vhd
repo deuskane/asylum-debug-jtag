@@ -55,14 +55,16 @@ package body tb_jtag_reset_trst_pkg is
     constant cfg         : in    tb_cfg_t
     ) is
     variable v_exp_ir    : natural;
+    variable v_data      : std_logic_vector(cfg.tdr_inout_width-1 downto 0);
   begin
-    tb_req.user_tdo <= '1';
+    v_data := tdr_pattern(cfg.tdr_inout_width, 1);
+    tb_req.tdr_inout_data(cfg.tdr_inout_width-1 downto 0) <= v_data;
     for i in 0 to 1 loop
       if i = 0
       then
         v_exp_ir := ir_bypass(cfg);
       else
-        v_exp_ir := C_IR_USER;
+        v_exp_ir := C_IR_TDR_INOUT;
       end if;
       tb_write_ir(v_exp_ir, "Instruction before TRST*", jtag_if, tb_rsp, cfg);
       tb_trst_pulse("TRST* alone", jtag_if, cfg);
@@ -76,9 +78,9 @@ package body tb_jtag_reset_trst_pkg is
       if cfg.trst_enable
       then
         tb_check_dr(x"00000000", C_IDCODE, "IDCODE selected by TRST*", jtag_if, cfg);
-      elsif v_exp_ir = C_IR_USER
+      elsif v_exp_ir = C_IR_TDR_INOUT
       then
-        tb_check_dr(x"00", x"FF", "User instruction kept (TRST* ignored)", jtag_if, cfg);
+        tb_check_dr((v_data'range => '0'), v_data, "jtag_tdr_inout kept (TRST* ignored)", jtag_if, cfg);
       else
         tb_check_dr(x"A5", bypass_of(x"A5"), "BYPASS kept (TRST* ignored)", jtag_if, cfg);
       end if;

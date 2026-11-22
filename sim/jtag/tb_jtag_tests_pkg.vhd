@@ -38,7 +38,7 @@ use     work.tb_jtag_bfm_pkg.all;
 package tb_jtag_tests_pkg is
 
   -- Names of the scenarios (valid items of TESTS_LIST)
-  constant C_TESTS : string := "reset_trst,reset_tms,ir_capture,idcode,bypass,unclaimed,user,tdo_en";
+  constant C_TESTS : string := "reset_trst,reset_tms,ir_capture,idcode,bypass,unclaimed,user,tdo_en,tdr_in,tdr_out,tdr_inout,tdr_reset";
 
   -- Run the scenario name
   procedure run_test(
@@ -85,6 +85,18 @@ package body tb_jtag_tests_pkg is
     elsif string_eq(name, "tdo_en")
     then
       work.tb_jtag_tdo_en_pkg.run     (jtag_if, tb_req, tb_rsp, cfg);
+    elsif string_eq(name, "tdr_in")
+    then
+      work.tb_jtag_tdr_in_pkg.run     (jtag_if, tb_req, tb_rsp, cfg);
+    elsif string_eq(name, "tdr_out")
+    then
+      work.tb_jtag_tdr_out_pkg.run    (jtag_if, tb_req, tb_rsp, cfg);
+    elsif string_eq(name, "tdr_inout")
+    then
+      work.tb_jtag_tdr_inout_pkg.run  (jtag_if, tb_req, tb_rsp, cfg);
+    elsif string_eq(name, "tdr_reset")
+    then
+      work.tb_jtag_tdr_reset_pkg.run  (jtag_if, tb_req, tb_rsp, cfg);
     else
       alert(TB_ERROR, "Unknown test " & name, C_TB_SCOPE);
     end if;

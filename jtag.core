@@ -31,11 +31,14 @@ filesets:
     files        :
       - hdl/jtag_pkg.vhd
       - hdl/jtag_tap.vhd
+      - hdl/jtag_tdr_in.vhd
+      - hdl/jtag_tdr_out.vhd
+      - hdl/jtag_tdr_inout.vhd
     file_type    : vhdlSource-2008
     logical_name : asylum
 
   #---------------------------------------
-  # Testbench of jtag_tap : JTAG BFM of
+  # Testbench of jtag_tap and of the TDRs : JTAG BFM of
   # asylum_uvvm, one package per scenario
   #---------------------------------------
   sim_jtag:
@@ -49,6 +52,10 @@ filesets:
       - sim/jtag/tb_jtag_unclaimed_pkg.vhd
       - sim/jtag/tb_jtag_user_pkg.vhd
       - sim/jtag/tb_jtag_tdo_en_pkg.vhd
+      - sim/jtag/tb_jtag_tdr_in_pkg.vhd
+      - sim/jtag/tb_jtag_tdr_out_pkg.vhd
+      - sim/jtag/tb_jtag_tdr_inout_pkg.vhd
+      - sim/jtag/tb_jtag_tdr_reset_pkg.vhd
       - sim/jtag/tb_jtag_tests_pkg.vhd
       - sim/jtag/tb_jtag.vhd
     file_type    : vhdlSource-2008
@@ -73,15 +80,15 @@ targets:
   #---------------------------------------
   # tb_jtag : compiled once per configuration, scenarios chosen at run
   # time (TESTS_LIST, empty : build and elaboration only). Reference
-  # configuration (5-bit IR, TRST) : sim_jtag (build only) and one
-  # sim_jtag_<test> target per scenario ; sim_jtag_ir8 (8-bit IR, no TRST)
+  # configuration (5-bit IR, TRST, TDRs of 8 (in), 12 (out) and 16 (in/out) bits) : sim_jtag (build only) and one
+  # sim_jtag_<test> target per scenario ; sim_jtag_ir8 (8-bit IR, no TRST, TDRs of 1 (in), 33 (out) and 5 (in/out) bits)
   # runs every scenario. Each target repeats the generics of its
   # configuration : FuseSoC replaces the parameters list of an inherited
   # target. Generated.
   #---------------------------------------
   sim_jtag: &sim_jtag
     << : *default
-    description     : Simulation of jtag_tap (5-bit IR, TRST) - build only (scenarios of TESTS_LIST)
+    description     : Simulation of jtag_tap and the TDRs (5-bit IR, TRST, TDRs of 8 (in), 12 (out) and 16 (in/out) bits) - build only (scenarios of TESTS_LIST)
     filesets_append :
       - sim_jtag
     toplevel        : tb_jtag
@@ -89,6 +96,9 @@ targets:
       - TESTS_LIST
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
     default_tool    : ghdl
     tools :
       ghdl :
@@ -104,91 +114,170 @@ targets:
   sim_jtag_reset_trst:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap - TRST pulse alone, Test-Logic-Reset and IDCODE selected
+    description     : Simulation of jtag_tap and the TDRs - TRST pulse alone, Test-Logic-Reset and IDCODE selected
     parameters      :
       - TESTS_LIST=reset_trst
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
 
   #---------------------------------------
   sim_jtag_reset_tms:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap - reset by TMS only, IDCODE selected
+    description     : Simulation of jtag_tap and the TDRs - reset by TMS only, IDCODE selected
     parameters      :
       - TESTS_LIST=reset_tms
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
 
   #---------------------------------------
   sim_jtag_ir_capture:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap - Capture-IR loads 0...01, ir_o changes in Update-IR only
+    description     : Simulation of jtag_tap and the TDRs - Capture-IR loads 0...01, ir_o changes in Update-IR only
     parameters      :
       - TESTS_LIST=ir_capture
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
 
   #---------------------------------------
   sim_jtag_idcode:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap - IDCODE after reset and by IR scan, 32-bit register
+    description     : Simulation of jtag_tap and the TDRs - IDCODE after reset and by IR scan, 32-bit register
     parameters      :
       - TESTS_LIST=idcode
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
 
   #---------------------------------------
   sim_jtag_bypass:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap - BYPASS, one bit delay, captured to 0
+    description     : Simulation of jtag_tap and the TDRs - BYPASS, one bit delay, captured to 0
     parameters      :
       - TESTS_LIST=bypass
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
 
   #---------------------------------------
   sim_jtag_unclaimed:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap - unclaimed opcodes (all zeros included) select BYPASS
+    description     : Simulation of jtag_tap and the TDRs - unclaimed opcodes (all zeros included) select BYPASS
     parameters      :
       - TESTS_LIST=unclaimed
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
 
   #---------------------------------------
   sim_jtag_user:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap - user instruction, TDO from user_tdo_i
+    description     : Simulation of jtag_tap and the TDRs - user instruction, TDO from user_tdo_i
     parameters      :
       - TESTS_LIST=user
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
 
   #---------------------------------------
   sim_jtag_tdo_en:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap - tdo_en high in Shift-IR and Shift-DR only
+    description     : Simulation of jtag_tap and the TDRs - tdo_en high in Shift-IR and Shift-DR only
     parameters      :
       - TESTS_LIST=tdo_en
       - IR_WIDTH=5
       - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
+
+  #---------------------------------------
+  sim_jtag_tdr_in:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap and the TDRs - jtag_tdr_in, capture of data_i, no capture or shift when not selected
+    parameters      :
+      - TESTS_LIST=tdr_in
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
+
+  #---------------------------------------
+  sim_jtag_tdr_out:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap and the TDRs - jtag_tdr_out, update of data_o, held during the scans and when not selected
+    parameters      :
+      - TESTS_LIST=tdr_out
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
+
+  #---------------------------------------
+  sim_jtag_tdr_inout:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap and the TDRs - jtag_tdr_inout, capture of data_i and update of data_o
+    parameters      :
+      - TESTS_LIST=tdr_inout
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
+
+  #---------------------------------------
+  sim_jtag_tdr_reset:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap and the TDRs - reset values of the TDRs (power-on reset, TRST, Test-Logic-Reset)
+    parameters      :
+      - TESTS_LIST=tdr_reset
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+      - TDR_IN_WIDTH=8
+      - TDR_OUT_WIDTH=12
+      - TDR_INOUT_WIDTH=16
 
   #---------------------------------------
   sim_jtag_ir8:
   #---------------------------------------
     << : *sim_jtag
-    description     : Simulation of jtag_tap, 8-bit IR, no TRST, every scenario
+    description     : Simulation of jtag_tap and the TDRs, 8-bit IR, no TRST, TDRs of 1 (in), 33 (out) and 5 (in/out) bits, every scenario
     parameters      :
-      - TESTS_LIST=reset_trst,reset_tms,ir_capture,idcode,bypass,unclaimed,user,tdo_en
+      - TESTS_LIST=reset_trst,reset_tms,ir_capture,idcode,bypass,unclaimed,user,tdo_en,tdr_in,tdr_out,tdr_inout,tdr_reset
       - IR_WIDTH=8
       - TRST_ENABLE=false
+      - TDR_IN_WIDTH=1
+      - TDR_OUT_WIDTH=33
+      - TDR_INOUT_WIDTH=5
 
 #=========================================
 parameters :
@@ -212,4 +301,22 @@ parameters :
     description : true, the TAP uses TRST
     datatype    : bool
     default     : true
+    paramtype   : generic
+
+  TDR_IN_WIDTH :
+    description : Width of the jtag_tdr_in register
+    datatype    : int
+    default     : 16
+    paramtype   : generic
+
+  TDR_OUT_WIDTH :
+    description : Width of the jtag_tdr_out register
+    datatype    : int
+    default     : 8
+    paramtype   : generic
+
+  TDR_INOUT_WIDTH :
+    description : Width of the jtag_tdr_inout register
+    datatype    : int
+    default     : 8
     paramtype   : generic

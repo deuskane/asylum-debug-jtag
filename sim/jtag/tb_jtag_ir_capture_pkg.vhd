@@ -59,7 +59,7 @@ package body tb_jtag_ir_capture_pkg is
     variable v_exp       : std_logic_vector(cfg.ir_width-1 downto 0);
   begin
     v_exp     := std_logic_vector(to_unsigned(1, cfg.ir_width));
-    v_opcodes := (ir_bypass(cfg), C_IR_USER, 0, C_IR_UNCLAIMED, C_IR_IDCODE);
+    v_opcodes := (ir_bypass(cfg), C_IR_TDR_IN, 0, C_IR_UNCLAIMED, C_IR_IDCODE);
     for i in v_opcodes'range loop
       tb_write_ir(v_opcodes(i), "IR scan " & to_string(i), jtag_if, tb_rsp, cfg);
       check_value(tb_rsp.ir_len, cfg.ir_width, ERROR, "Bits shifted out by the IR scan", C_TB_SCOPE);
