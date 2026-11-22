@@ -11,7 +11,7 @@
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description: Types and components of the JTAG IP : JTAG pins (jtag_ini_t,
---              jtag_tgt_t), TAP, test data registers
+--              jtag_tgt_t), TAP, test data registers, pad multiplexer
 -------------------------------------------------------------------------------
 -- Copyright (c) 2026
 -------------------------------------------------------------------------------
@@ -39,6 +39,10 @@ package jtag_pkg is
     tdo          : std_logic;
     tdo_en       : std_logic;
   end record jtag_tgt_t;
+
+  -- Pads of the functions of jtag_pad_mux : one element per function, one
+  -- bit per pad
+  type pad_array_t is array (natural range <>) of std_logic_vector;
 
 -- [COMPONENT_INSERT][BEGIN]
 component jtag_tap is
@@ -117,6 +121,25 @@ component jtag_tdr_inout is
    ;data_o         : out std_logic_vector                         -- Updated in Update-DR (width of data_i)
   );
 end component jtag_tdr_inout;
+
+component jtag_pad_mux is
+  generic (
+    NB_FUNC          : positive := 3                               -- Number of functions
+   ;NB_PAD           : positive := 4                               -- Number of pads
+   ;PAD_IN_DEFAULT   : std_logic_vector(NB_PAD-1 downto 0)         -- Pad inputs seen by the unselected functions
+  );
+  port (
+    sel_i            : in  natural range 0 to NB_FUNC-1            -- Selected function
+    -- Functions : one element per function, one bit per pad
+   ;func_out_i       : in  pad_array_t(0 to NB_FUNC-1)(NB_PAD-1 downto 0) -- Pad outputs
+   ;func_oe_i        : in  pad_array_t(0 to NB_FUNC-1)(NB_PAD-1 downto 0) -- Pad output enables
+   ;func_in_o        : out pad_array_t(0 to NB_FUNC-1)(NB_PAD-1 downto 0) -- Pad inputs
+    -- Pads
+   ;pad_out_o        : out std_logic_vector(NB_PAD-1 downto 0)
+   ;pad_oe_o         : out std_logic_vector(NB_PAD-1 downto 0)
+   ;pad_in_i         : in  std_logic_vector(NB_PAD-1 downto 0)
+  );
+end component jtag_pad_mux;
 
 -- [COMPONENT_INSERT][END]
 
