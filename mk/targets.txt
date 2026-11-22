@@ -1,0 +1,27 @@
+default                   : Default Target
+lint_ghdl                 : Lint with GHDL (-Wall analysis and elaboration of jtag_wrapper)
+lint_ghdl_synth_default   : Synthesis check of jtag_wrapper, default generics (5-bit IR, TRST, TDRs of 16 (in), 8 (out) and 8 (in/out) bits, 3 functions on 4 pads)
+lint_ghdl_synth_min       : Synthesis check of jtag_wrapper, smallest configuration (3-bit IR, no TRST, 1-bit TDRs, 2 functions on 1 pad)
+sim_jtag                  : Simulation of jtag_tap and the TDRs (5-bit IR, TRST, TDRs of 8 (in), 12 (out) and 16 (in/out) bits) - build only (scenarios of TESTS_LIST)
+sim_jtag_bypass           : Simulation of jtag_tap and the TDRs - BYPASS, one bit delay, captured to 0
+sim_jtag_idcode           : Simulation of jtag_tap and the TDRs - IDCODE after reset and by IR scan, 32-bit register
+sim_jtag_ir8              : Simulation of jtag_tap and the TDRs, 8-bit IR, no TRST, TDRs of 1 (in), 33 (out) and 5 (in/out) bits, every scenario
+sim_jtag_ir_capture       : Simulation of jtag_tap and the TDRs - Capture-IR loads 0...01, ir_o changes in Update-IR only
+sim_jtag_pause            : Simulation of jtag_tap and the TDRs - Pause-IR, Pause-DR, Exit2 and zero-length scans, every TAP transition
+sim_jtag_reset_tms        : Simulation of jtag_tap and the TDRs - reset by TMS only, IDCODE selected
+sim_jtag_reset_trst       : Simulation of jtag_tap and the TDRs - TRST pulse alone, Test-Logic-Reset and IDCODE selected
+sim_jtag_tdo_en           : Simulation of jtag_tap and the TDRs - tdo_en high in Shift-IR and Shift-DR only
+sim_jtag_tdr_in           : Simulation of jtag_tap and the TDRs - jtag_tdr_in, capture of data_i, no capture or shift when not selected
+sim_jtag_tdr_inout        : Simulation of jtag_tap and the TDRs - jtag_tdr_inout, capture of data_i and update of data_o
+sim_jtag_tdr_out          : Simulation of jtag_tap and the TDRs - jtag_tdr_out, update of data_o, held during the scans and when not selected
+sim_jtag_tdr_reset        : Simulation of jtag_tap and the TDRs - reset values of the TDRs (power-on reset, TRST, Test-Logic-Reset)
+sim_jtag_unclaimed        : Simulation of jtag_tap and the TDRs - unclaimed opcodes (all zeros included) select BYPASS
+sim_jtag_user             : Simulation of jtag_tap and the TDRs - user instructions, TDO from user_tdo_i (TDR of the opcode)
+sim_pad_mux               : Simulation of jtag_pad_mux (3 functions on 4 pads) - build only (scenarios of TESTS_LIST)
+sim_pad_mux_5x2           : Simulation of jtag_pad_mux, 5 functions on 2 pads, every scenario
+sim_pad_mux_default       : Simulation of jtag_pad_mux - unselected functions see PAD_IN_DEFAULT
+sim_pad_mux_output_enable : Simulation of jtag_pad_mux - pad output enables from the selected function only
+sim_pad_mux_select        : Simulation of jtag_pad_mux - pads driven by the selected function, which sees the pad inputs
+syn_default               : Synthesis (Artix-7, sky130) of jtag_wrapper, default generics (5-bit IR, TRST, TDRs of 16 (in), 8 (out) and 8 (in/out) bits, 3 functions on 4 pads)
+syn_min                   : Synthesis (Artix-7, sky130) of jtag_wrapper, smallest configuration (3-bit IR, no TRST, 1-bit TDRs, 2 functions on 1 pad)
+

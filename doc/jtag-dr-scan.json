@@ -1,0 +1,20 @@
+{"signal": [
+  {"name": "TCK",          "wave": "01010101010101010101"},
+  {"name": "TMS",          "wave": "1.0.........1...0..."},
+  {"name": "TAP state",    "wave": "==.3.4.......=.5.=..", "data": ["RTI", "Select-DR", "Capture-DR", "Shift-DR", "Exit1-DR", "Update-DR", "RTI"]},
+  {},
+  {"name": "TDI",          "wave": "x.....4.4.4.4.x.....", "data": ["d0", "d1", "d2", "d3"]},
+  {"name": "TDO",          "wave": "z.....3.4.4.4.z.....", "data": ["c0", "c1", "c2", "c3"]},
+  {"name": "tdo_en",       "wave": "0.....1.......0....."},
+  {},
+  {"name": "capture_dr_o", "wave": "0..1.0.............."},
+  {"name": "shift_dr_o",   "wave": "0....1.......0......"},
+  {"name": "update_dr_o",  "wave": "0..............1.0.."},
+  {},
+  {"name": "data_i",       "wave": "3...................", "data": ["c3 c2 c1 c0"]},
+  {"name": "shift_r",      "wave": "=....3.4.4.4.4......", "data": ["previous", "c3 c2 c1 c0", "d0 c3 c2 c1", "d1 d0 c3 c2", "d2 d1 d0 c3", "d3 d2 d1 d0"]},
+  {"name": "data_o",       "wave": "=...............5...", "data": ["previous", "d3 d2 d1 d0"]}
+],
+ "head": {"text": "DR scan of a 4-bit jtag_tdr_inout : capture on the rising edge, TDO and update on the falling edge of TCK"},
+ "config": {"hscale": 2}
+}
