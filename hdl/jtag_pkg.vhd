@@ -11,13 +11,15 @@
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description: Types and components of the JTAG IP : JTAG pins (jtag_ini_t,
---              jtag_tgt_t), TAP, test data registers, pad multiplexer
+--              jtag_tgt_t), TAP, test data registers, pad multiplexer,
+--              remote_bitbang JTAG master
 -------------------------------------------------------------------------------
 -- Copyright (c) 2026
 -------------------------------------------------------------------------------
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created (JTAG pins from WardRV_pkg)
+-- 2026-11-22  1.1      mrosiere jtag_bitbang
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -140,6 +142,28 @@ component jtag_pad_mux is
    ;pad_in_i         : in  std_logic_vector(NB_PAD-1 downto 0)
   );
 end component jtag_pad_mux;
+
+component jtag_bitbang is
+  port (
+    -- Clock and Reset
+    clk_i            : in  std_logic
+   ;arst_b_i         : in  std_logic
+    -- Commands of OpenOCD (bytes of the remote_bitbang protocol)
+   ;s_axis_tdata_i   : in  std_logic_vector(8-1 downto 0)
+   ;s_axis_tvalid_i  : in  std_logic
+   ;s_axis_tready_o  : out std_logic
+    -- Answers to 'R' ('0' or '1')
+   ;m_axis_tdata_o   : out std_logic_vector(8-1 downto 0)
+   ;m_axis_tvalid_o  : out std_logic
+   ;m_axis_tready_i  : in  std_logic
+    -- JTAG pins (TCK is a register of the clk domain)
+   ;jtag_ini_o       : out jtag_ini_t
+   ;jtag_tgt_i       : in  jtag_tgt_t
+    -- System reset request (SRST, active high) and LED
+   ;srst_o           : out std_logic
+   ;blink_o          : out std_logic
+  );
+end component jtag_bitbang;
 
 -- [COMPONENT_INSERT][END]
 
