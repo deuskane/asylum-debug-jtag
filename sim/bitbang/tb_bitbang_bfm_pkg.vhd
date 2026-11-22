@@ -16,8 +16,8 @@
 --  the scenarios and the testbench (tb_req_t : stimuli, tb_rsp_t : outputs
 --  of the DUT and answers collected by the monitor), and the bytes OpenOCD
 --  sends (remote_bitbang driver over the bitbang driver of OpenOCD 0.12) :
---  one command (tb_send), TMS sequence (tb_tms), IR / DR scan (tb_scan),
---  TDO read (tb_read).
+--  one command (tb_send : on s_axis, or through the UART with the UVVM UART
+--  BFM), TMS sequence (tb_tms), IR / DR scan (tb_scan), TDO read (tb_read).
 -------------------------------------------------------------------------------
 -- Copyright (c) 2026
 -------------------------------------------------------------------------------
@@ -32,6 +32,9 @@ use     ieee.numeric_std.all;
 
 library uvvm_util;
 context uvvm_util.uvvm_util_context;
+
+library bitvis_vip_uart;
+use     bitvis_vip_uart.uart_bfm_pkg.all;
 
 package tb_bitbang_bfm_pkg is
 
@@ -52,18 +55,28 @@ package tb_bitbang_bfm_pkg is
   -- Answers kept by the monitor (from the reset of the scenario)
   constant C_MAX_ANSWERS  : natural  := 256;
 
+  -- UART of the scenario uart : 8 data bits, no parity, one stop bit, 16
+  -- clock cycles per bit (cfg_baud_tick_cnt_max_i of uart_baud_rate_gen)
+  constant C_UART_CNT_MAX : natural  := 15;
+  constant C_UART_BIT     : time     := (C_UART_CNT_MAX+1)*C_CLK_PERIOD;
+  constant C_UART_CONFIG  : t_uart_bfm_config;
+
   -- Stimuli of the scenarios
   type tb_req_t is record
     s_tdata         : std_logic_vector(8-1 downto 0);               -- Command to the DUT
     s_tvalid        : std_logic;
     m_tready        : std_logic;                                    -- Answers taken from the DUT
     tdr_data        : std_logic_vector(C_TDR_WIDTH-1 downto 0);     -- data_i of the TDR
+    uart            : boolean;                                      -- true : commands and answers through the UART
+    uart_rx         : std_logic;                                    -- Serial input of the UART (UART BFM)
   end record tb_req_t;
 
   constant C_TB_REQ_IDLE  : tb_req_t := (s_tdata  => x"00",
                                          s_tvalid => '0',
                                          m_tready => '1',
-                                         tdr_data => (others => '0'));
+                                         tdr_data => (others => '0'),
+                                         uart     => false,
+                                         uart_rx  => '1');
 
   -- Outputs of the DUT, of the TAP and of the monitor
   type tb_rsp_t is record
@@ -85,7 +98,8 @@ package tb_bitbang_bfm_pkg is
   function to_byte(cmd : character) return std_logic_vector;
 
   -- One command : byte on s_axis, returns after the handshake (the outputs
-  -- of the DUT change one delta cycle later)
+  -- of the DUT change one delta cycle later) ; with tb_req.uart, UART frame,
+  -- returns after the stop bit
   procedure tb_send(
     constant cmd          : in    character;
     signal   tb_req       : inout tb_req_t;
@@ -162,6 +176,16 @@ end package tb_bitbang_bfm_pkg;
 
 package body tb_bitbang_bfm_pkg is
 
+  function uart_config return t_uart_bfm_config is
+    variable v_config : t_uart_bfm_config := C_UART_BFM_CONFIG_DEFAULT;
+  begin
+    v_config.bit_time := C_UART_BIT;
+    v_config.parity   := PARITY_NONE;
+    return v_config;
+  end function uart_config;
+
+  constant C_UART_CONFIG  : t_uart_bfm_config := uart_config;
+
   function to_byte(cmd : character) return std_logic_vector is
   begin
     return std_logic_vector(to_unsigned(character'pos(cmd), 8));
@@ -174,10 +198,19 @@ package body tb_bitbang_bfm_pkg is
     signal   clk          : in    std_logic
     ) is
   begin
-    tb_req.s_tdata  <= to_byte(cmd);
-    tb_req.s_tvalid <= '1';
-    wait until rising_edge(clk) and tb_rsp.s_tready = '1';
-    tb_req.s_tvalid <= '0';
+    if tb_req.uart
+    then
+      uart_transmit(data_value => to_byte(cmd),
+                    msg        => "Command '" & cmd & "'",
+                    tx         => tb_req.uart_rx,
+                    config     => C_UART_CONFIG,
+                    scope      => C_TB_SCOPE);
+    else
+      tb_req.s_tdata  <= to_byte(cmd);
+      tb_req.s_tvalid <= '1';
+      wait until rising_edge(clk) and tb_rsp.s_tready = '1';
+      tb_req.s_tvalid <= '0';
+    end if;
   end procedure tb_send;
 
   procedure tb_write(

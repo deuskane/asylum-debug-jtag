@@ -100,6 +100,7 @@ filesets:
       - sim/bitbang/tb_bitbang_backpressure_pkg.vhd
       - sim/bitbang/tb_bitbang_idcode_pkg.vhd
       - sim/bitbang/tb_bitbang_dr_scan_pkg.vhd
+      - sim/bitbang/tb_bitbang_uart_pkg.vhd
       - sim/bitbang/tb_bitbang_tests_pkg.vhd
       - sim/bitbang/tb_bitbang.vhd
     file_type    : vhdlSource-2008
@@ -107,6 +108,23 @@ filesets:
       - bitvis:verification:uvvm
       # string_pkg list_length / list_item / list_contains (TESTS_LIST)
       - ">=asylum:utils:pkg:1.10.0"
+      # uart_rx_axis, uart_tx_axis, uart_baud_rate_gen (scenario uart)
+      - ">=asylum:communication:uart:3.0.0"
+
+  #---------------------------------------
+  # Co-simulation with OpenOCD (remote_bitbang adapter over TCP), hooks in
+  # sim/openocd/cosim.sh
+  #---------------------------------------
+  sim_openocd:
+    files        :
+      - sim/openocd/rbb_pkg.vhd
+      - sim/openocd/tb_bitbang_openocd.vhd
+      - sim/openocd/rbb_server.c : {file_type : user, copyto : openocd/rbb_server.c}
+      - sim/openocd/jtag.cfg     : {file_type : user, copyto : openocd/jtag.cfg}
+      - sim/openocd/cosim.sh     : {file_type : user, copyto : openocd/cosim.sh}
+    file_type    : vhdlSource-2008
+    depend       :
+      - bitvis:verification:uvvm
 
   #---------------------------------------
   syn:
@@ -582,6 +600,41 @@ targets:
     parameters      :
       - TESTS_LIST=dr_scan
 
+  #---------------------------------------
+  sim_bitbang_uart:
+  #---------------------------------------
+    << : *sim_bitbang
+    description     : "Simulation of jtag_bitbang - through uart_rx_axis and uart_tx_axis with the UVVM UART BFM (IDCODE, DR scan, TRST, SRST, LED)"
+    parameters      :
+      - TESTS_LIST=uart
+
+  #---------------------------------------
+  # Co-simulation : OpenOCD 0.12 (remote_bitbang adapter, TCP) drives
+  # jtag_bitbang, jtag_tap and a TDR ; checks of sim/openocd/jtag.cfg.
+  # Needs openocd and gcc (sim/openocd/cosim.sh, hooks run in the work root)
+  #---------------------------------------
+  sim_openocd:
+  #---------------------------------------
+    << : *default
+    description     : Co-simulation of jtag_bitbang with OpenOCD (remote_bitbang over TCP) - IDCODE, DR scans, TRST, SRST
+    filesets_append :
+      - sim_openocd
+    toplevel        : tb_bitbang_openocd
+    default_tool    : ghdl
+    tools :
+      ghdl :
+        analyze_options :
+          - "$(GHDL_ANALYZE_OPTION)"
+          - "-Wall"
+          - "-frelaxed"
+        run_options     :
+          - "$(GHDL_RUN_OPTION)"
+          - "--ieee-asserts=disable"
+    hooks :
+      pre_build     : [cosim_build]
+      pre_run       : [cosim_start]
+      post_run      : [cosim_check]
+
 #=========================================
 scripts:
 #=========================================
@@ -597,6 +650,18 @@ scripts:
   #---------------------------------------
   yosys_synth :
     cmd : [bash, yosys_synth.sh]
+
+  #---------------------------------------
+  # Hooks of sim_openocd (cwd = work_root)
+  #---------------------------------------
+  cosim_build :
+    cmd : [bash, openocd/cosim.sh, build]
+
+  cosim_start :
+    cmd : [bash, openocd/cosim.sh, start]
+
+  cosim_check :
+    cmd : [bash, openocd/cosim.sh, check]
 
 #=========================================
 parameters :

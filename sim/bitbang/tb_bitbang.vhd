@@ -15,6 +15,10 @@
 --  sent as bytes on s_axis (tb_bitbang_bfm_pkg), jtag_bitbang drives the
 --  real jtag_tap of the IP (IR 5 bits) with one jtag_tdr_inout of 8 bits
 --  (opcode 2).
+--  Scenario uart : the commands go through the UART (UVVM UART BFM ->
+--  uart_rx_axis -> jtag_bitbang -> uart_tx_axis -> UVVM UART BFM), 16 clock
+--  cycles per bit ; an overrun or a framing error of uart_rx_axis is an
+--  error.
 --  Monitor of m_axis : takes the answers (m_axis_tready from the scenario),
 --  each one must be '0' or '1', and a pending answer (tvalid = 1, tready =
 --  0) must stay valid and unchanged.
@@ -35,6 +39,9 @@ use     ieee.numeric_std.all;
 
 library uvvm_util;
 context uvvm_util.uvvm_util_context;
+
+library bitvis_vip_uart;
+use     bitvis_vip_uart.uart_bfm_pkg.all;
 
 library asylum;
 use     asylum.jtag_pkg.all;
@@ -58,9 +65,12 @@ architecture sim of tb_bitbang is
   signal   arst_b         : std_logic := '0';
 
   -- DUT
+  signal   s_tdata        : std_logic_vector(8-1 downto 0);
+  signal   s_tvalid       : std_logic;
   signal   s_tready       : std_logic;
   signal   m_tdata        : std_logic_vector(8-1 downto 0);
   signal   m_tvalid       : std_logic;
+  signal   m_tready       : std_logic;
   signal   jtag_ini       : jtag_ini_t;
   signal   jtag_tgt       : jtag_tgt_t;
 
@@ -75,6 +85,27 @@ architecture sim of tb_bitbang is
   signal   tap_tdi        : std_logic;
   signal   tdr_sel        : std_logic;
   signal   tdr_tdo        : std_logic;
+
+  -- UART (scenario uart)
+  constant C_UART_CNT     : std_logic_vector(16-1 downto 0) := std_logic_vector(to_unsigned(C_UART_CNT_MAX, 16));
+  signal   rx_tdata       : std_logic_vector(8-1 downto 0);
+  signal   rx_tvalid      : std_logic;
+  signal   rx_tick        : std_logic;
+  signal   rx_tick_half   : std_logic;
+  signal   rx_tick_en     : std_logic;
+  signal   rx_overrun     : std_logic;
+  signal   rx_framing     : std_logic;
+  signal   tx_tvalid      : std_logic;
+  signal   tx_tready      : std_logic;
+  signal   tx_tick        : std_logic;
+  signal   uart_tx        : std_logic;
+  signal   uart_stop      : std_logic;
+
+  -- Answers taken on m_axis and through the UART
+  signal   axis_cnt       : natural;
+  signal   axis_answers   : std_logic_vector(0 to C_MAX_ANSWERS-1);
+  signal   uart_cnt       : natural;
+  signal   uart_answers   : std_logic_vector(0 to C_MAX_ANSWERS-1);
 
   -- Scenarios
   signal   tb_req         : tb_req_t  := C_TB_REQ_IDLE;
@@ -91,17 +122,104 @@ begin  -- architecture sim
     port map
     (clk_i           => clk
     ,arst_b_i        => arst_b
-    ,s_axis_tdata_i  => tb_req.s_tdata
-    ,s_axis_tvalid_i => tb_req.s_tvalid
+    ,s_axis_tdata_i  => s_tdata
+    ,s_axis_tvalid_i => s_tvalid
     ,s_axis_tready_o => s_tready
     ,m_axis_tdata_o  => m_tdata
     ,m_axis_tvalid_o => m_tvalid
-    ,m_axis_tready_i => tb_req.m_tready
+    ,m_axis_tready_i => m_tready
     ,jtag_ini_o      => jtag_ini
     ,jtag_tgt_i      => jtag_tgt
     ,srst_o          => tb_rsp.srst
     ,blink_o         => tb_rsp.blink
     );
+
+  -- Commands and answers : scenario (s_axis, m_axis) or UART
+  s_tdata   <= rx_tdata  when tb_req.uart else tb_req.s_tdata;
+  s_tvalid  <= rx_tvalid when tb_req.uart else tb_req.s_tvalid;
+  m_tready  <= tx_tready when tb_req.uart else tb_req.m_tready;
+  tx_tvalid <= m_tvalid  when tb_req.uart else '0';
+
+  -----------------------------------------------------------------------------
+  -- UART : receiver of the commands, transmitter of the answers
+  -----------------------------------------------------------------------------
+  ins_rx_baud : entity asylum.uart_baud_rate_gen
+    generic map
+    (BAUD_TICK_CNT_WIDTH     => 16
+    )
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,baud_tick_en_i          => rx_tick_en
+    ,baud_tick_o             => rx_tick
+    ,baud_tick_half_o        => rx_tick_half
+    ,cfg_baud_tick_cnt_max_i => C_UART_CNT
+    );
+
+  ins_rx : entity asylum.uart_rx_axis
+    generic map
+    (WIDTH                   => 8
+    )
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,uart_rx_i               => tb_req.uart_rx
+    ,m_axis_tdata_o          => rx_tdata
+    ,m_axis_parity_error_o   => open
+    ,m_axis_tvalid_o         => rx_tvalid
+    ,m_axis_tready_i         => s_tready
+    ,baud_tick_i             => rx_tick
+    ,baud_tick_half_i        => rx_tick_half
+    ,baud_tick_en_o          => rx_tick_en
+    ,parity_enable_i         => '0'
+    ,parity_odd_i            => '0'
+    ,last_parity_error_o     => open
+    ,err_overrun_o           => rx_overrun
+    ,err_parity_o            => open
+    ,err_framing_o           => rx_framing
+    ,err_break_o             => open
+    ,debug_o                 => open
+    );
+
+  ins_tx_baud : entity asylum.uart_baud_rate_gen
+    generic map
+    (BAUD_TICK_CNT_WIDTH     => 16
+    )
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,baud_tick_en_i          => '1'
+    ,baud_tick_o             => tx_tick
+    ,baud_tick_half_o        => open
+    ,cfg_baud_tick_cnt_max_i => C_UART_CNT
+    );
+
+  ins_tx : entity asylum.uart_tx_axis
+    generic map
+    (WIDTH                   => 8
+    )
+    port map
+    (clk_i                   => clk
+    ,arst_b_i                => arst_b
+    ,s_axis_tdata_i          => m_tdata
+    ,s_axis_tvalid_i         => tx_tvalid
+    ,s_axis_tready_o         => tx_tready
+    ,uart_tx_o               => uart_tx
+    ,uart_cts_b_i            => '0'
+    ,baud_tick_i             => tx_tick
+    ,parity_enable_i         => '0'
+    ,parity_odd_i            => '0'
+    ,debug_o                 => open
+    );
+
+  p_uart_errors : process
+  begin
+    wait until rising_edge(clk);
+    if tb_req.uart and (rx_overrun = '1' or rx_framing = '1')
+    then
+      alert(ERROR, "uart_rx_axis : overrun (" & to_string(rx_overrun) & ") or framing error (" & to_string(rx_framing) & ")", C_SCOPE);
+    end if;
+  end process p_uart_errors;
 
   -----------------------------------------------------------------------------
   -- TAP and one TDR (opcode C_IR_TDR)
@@ -156,9 +274,12 @@ begin  -- architecture sim
   tb_rsp.tlr      <= tap_tlr;
   tb_rsp.ir       <= tap_ir;
 
+  tb_rsp.answer_cnt <= uart_cnt     when tb_req.uart else axis_cnt;
+  tb_rsp.answers    <= uart_answers when tb_req.uart else axis_answers;
+
   -----------------------------------------------------------------------------
   -- Monitor of m_axis : answers taken, '0' or '1' only, a pending answer
-  -- stays valid and unchanged
+  -- stays valid and unchanged (with the UART too)
   -----------------------------------------------------------------------------
   p_answers : process
     variable v_pending : boolean := false;
@@ -167,31 +288,60 @@ begin  -- architecture sim
     wait until rising_edge(clk);
     if arst_b = '0'
     then
-      tb_rsp.answer_cnt <= 0;
-      tb_rsp.answers    <= (others => 'U');
+      axis_cnt          <= 0;
+      axis_answers      <= (others => 'U');
       v_pending         := false;
     else
       if v_pending and (m_tvalid /= '1' or m_tdata /= v_data)
       then
         alert(ERROR, "Pending answer lost or changed (tvalid " & to_string(m_tvalid) & ", tdata " & to_hstring(m_tdata) & ")", C_SCOPE);
       end if;
-      v_pending := m_tvalid = '1' and tb_req.m_tready = '0';
+      v_pending := m_tvalid = '1' and m_tready = '0';
       v_data    := m_tdata;
 
-      if m_tvalid = '1' and tb_req.m_tready = '1'
+      if m_tvalid = '1' and m_tready = '1'
       then
         if m_tdata /= to_byte('0') and m_tdata /= to_byte('1')
         then
           alert(ERROR, "Answer x" & to_hstring(m_tdata) & " is not '0' or '1'", C_SCOPE);
         end if;
-        if tb_rsp.answer_cnt < C_MAX_ANSWERS
+        if axis_cnt < C_MAX_ANSWERS
         then
-          tb_rsp.answers(tb_rsp.answer_cnt) <= m_tdata(0);
+          axis_answers(axis_cnt) <= m_tdata(0);
         end if;
-        tb_rsp.answer_cnt <= tb_rsp.answer_cnt + 1;
+        axis_cnt <= axis_cnt + 1;
       end if;
     end if;
   end process p_answers;
+
+  -----------------------------------------------------------------------------
+  -- Answers received by the UART BFM (scenario uart)
+  -----------------------------------------------------------------------------
+  uart_stop <= '0' when tb_req.uart else '1';
+
+  p_uart_answers : process
+    variable v_data    : std_logic_vector(8-1 downto 0);
+  begin
+    if not tb_req.uart
+    then
+      uart_cnt     <= 0;
+      uart_answers <= (others => 'U');
+      wait until tb_req.uart;
+    end if;
+    uart_receive(v_data, "Answer", uart_tx, uart_stop, C_UART_CONFIG, C_SCOPE);
+    if tb_req.uart
+    then
+      if v_data /= to_byte('0') and v_data /= to_byte('1')
+      then
+        alert(ERROR, "Answer x" & to_hstring(v_data) & " received by the UART is not '0' or '1'", C_SCOPE);
+      end if;
+      if uart_cnt < C_MAX_ANSWERS
+      then
+        uart_answers(uart_cnt) <= v_data(0);
+      end if;
+      uart_cnt <= uart_cnt + 1;
+    end if;
+  end process p_uart_answers;
 
   -----------------------------------------------------------------------------
   -- Sequencer

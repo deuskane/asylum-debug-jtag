@@ -35,7 +35,7 @@ use     work.tb_bitbang_bfm_pkg.all;
 package tb_bitbang_tests_pkg is
 
   -- Names of the scenarios (valid items of TESTS_LIST)
-  constant C_TESTS : string := "write,read,reset,blink,ignored,backpressure,idcode,dr_scan";
+  constant C_TESTS : string := "write,read,reset,blink,ignored,backpressure,idcode,dr_scan,uart";
 
   -- Run the scenario name
   procedure run_test(
@@ -80,6 +80,9 @@ package body tb_bitbang_tests_pkg is
     elsif string_eq(name, "dr_scan")
     then
       work.tb_bitbang_dr_scan_pkg.run      (tb_req, tb_rsp, clk);
+    elsif string_eq(name, "uart")
+    then
+      work.tb_bitbang_uart_pkg.run         (tb_req, tb_rsp, clk);
     else
       alert(TB_ERROR, "Unknown test " & name, C_TB_SCOPE);
     end if;
