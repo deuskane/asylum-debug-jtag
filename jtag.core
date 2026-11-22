@@ -1,0 +1,45 @@
+CAPI=2:
+
+#-----------------------------------------------------------------------------
+# Title      : jtag Core file
+# Project    : Asylum
+#-----------------------------------------------------------------------------
+# File       : jtag.core
+# Author     : mrosiere
+#-----------------------------------------------------------------------------
+# Description: IEEE 1149.1 JTAG Test Access Port (IDCODE, BYPASS, user
+#              instructions decoded outside), test data registers (parallel
+#              in, out, in/out) and a generic pad multiplexer
+#-----------------------------------------------------------------------------
+# Copyright (c) 2026
+#-----------------------------------------------------------------------------
+# Revisions  :
+# Date        Version  Author   Description
+# 2026-11-22  1.0.0    mrosiere Created
+#-----------------------------------------------------------------------------
+
+name        : asylum:debug:jtag:1.0.0
+description : JTAG TAP, test data registers and pad multiplexer
+
+#=========================================
+filesets:
+#=========================================
+
+  #---------------------------------------
+  hdl:
+  #---------------------------------------
+    file_type    : vhdlSource-2008
+    logical_name : asylum
+
+#=========================================
+targets:
+#=========================================
+
+  #---------------------------------------
+  default: &default
+  #---------------------------------------
+    description     : Default Target
+    filesets        :
+      - hdl
+    toplevel        : jtag_tap
+    default_tool    : ghdl
