@@ -1,3 +1,3 @@
 FILE_CORE	?= jtag.core
-TARGET          ?= default
+TARGET          ?= sim_jtag
 TOOL		?= ghdl

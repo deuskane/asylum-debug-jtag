@@ -28,8 +28,34 @@ filesets:
   #---------------------------------------
   hdl:
   #---------------------------------------
+    files        :
+      - hdl/jtag_pkg.vhd
+      - hdl/jtag_tap.vhd
     file_type    : vhdlSource-2008
     logical_name : asylum
+
+  #---------------------------------------
+  # Testbench of jtag_tap : JTAG BFM of
+  # asylum_uvvm, one package per scenario
+  #---------------------------------------
+  sim_jtag:
+    files        :
+      - sim/jtag/tb_jtag_bfm_pkg.vhd
+      - sim/jtag/tb_jtag_reset_trst_pkg.vhd
+      - sim/jtag/tb_jtag_reset_tms_pkg.vhd
+      - sim/jtag/tb_jtag_ir_capture_pkg.vhd
+      - sim/jtag/tb_jtag_idcode_pkg.vhd
+      - sim/jtag/tb_jtag_bypass_pkg.vhd
+      - sim/jtag/tb_jtag_unclaimed_pkg.vhd
+      - sim/jtag/tb_jtag_user_pkg.vhd
+      - sim/jtag/tb_jtag_tdo_en_pkg.vhd
+      - sim/jtag/tb_jtag_tests_pkg.vhd
+      - sim/jtag/tb_jtag.vhd
+    file_type    : vhdlSource-2008
+    depend       :
+      - asylum:verification:uvvm
+      # string_pkg list_length / list_item / list_contains (TESTS_LIST)
+      - ">=asylum:utils:pkg:1.10.0"
 
 #=========================================
 targets:
@@ -43,3 +69,147 @@ targets:
       - hdl
     toplevel        : jtag_tap
     default_tool    : ghdl
+
+  #---------------------------------------
+  # tb_jtag : compiled once per configuration, scenarios chosen at run
+  # time (TESTS_LIST, empty : build and elaboration only). Reference
+  # configuration (5-bit IR, TRST) : sim_jtag (build only) and one
+  # sim_jtag_<test> target per scenario ; sim_jtag_ir8 (8-bit IR, no TRST)
+  # runs every scenario. Each target repeats the generics of its
+  # configuration : FuseSoC replaces the parameters list of an inherited
+  # target. Generated.
+  #---------------------------------------
+  sim_jtag: &sim_jtag
+    << : *default
+    description     : Simulation of jtag_tap (5-bit IR, TRST) - build only (scenarios of TESTS_LIST)
+    filesets_append :
+      - sim_jtag
+    toplevel        : tb_jtag
+    parameters      :
+      - TESTS_LIST
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+    default_tool    : ghdl
+    tools :
+      ghdl :
+        analyze_options :
+          - "$(GHDL_ANALYZE_OPTION)"
+          - "-Wall"
+          - "-frelaxed"
+        run_options     :
+          - "$(GHDL_RUN_OPTION)"
+          - "--ieee-asserts=disable"
+
+  #---------------------------------------
+  sim_jtag_reset_trst:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap - TRST pulse alone, Test-Logic-Reset and IDCODE selected
+    parameters      :
+      - TESTS_LIST=reset_trst
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+
+  #---------------------------------------
+  sim_jtag_reset_tms:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap - reset by TMS only, IDCODE selected
+    parameters      :
+      - TESTS_LIST=reset_tms
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+
+  #---------------------------------------
+  sim_jtag_ir_capture:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap - Capture-IR loads 0...01, ir_o changes in Update-IR only
+    parameters      :
+      - TESTS_LIST=ir_capture
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+
+  #---------------------------------------
+  sim_jtag_idcode:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap - IDCODE after reset and by IR scan, 32-bit register
+    parameters      :
+      - TESTS_LIST=idcode
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+
+  #---------------------------------------
+  sim_jtag_bypass:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap - BYPASS, one bit delay, captured to 0
+    parameters      :
+      - TESTS_LIST=bypass
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+
+  #---------------------------------------
+  sim_jtag_unclaimed:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap - unclaimed opcodes (all zeros included) select BYPASS
+    parameters      :
+      - TESTS_LIST=unclaimed
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+
+  #---------------------------------------
+  sim_jtag_user:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap - user instruction, TDO from user_tdo_i
+    parameters      :
+      - TESTS_LIST=user
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+
+  #---------------------------------------
+  sim_jtag_tdo_en:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap - tdo_en high in Shift-IR and Shift-DR only
+    parameters      :
+      - TESTS_LIST=tdo_en
+      - IR_WIDTH=5
+      - TRST_ENABLE=true
+
+  #---------------------------------------
+  sim_jtag_ir8:
+  #---------------------------------------
+    << : *sim_jtag
+    description     : Simulation of jtag_tap, 8-bit IR, no TRST, every scenario
+    parameters      :
+      - TESTS_LIST=reset_trst,reset_tms,ir_capture,idcode,bypass,unclaimed,user,tdo_en
+      - IR_WIDTH=8
+      - TRST_ENABLE=false
+
+#=========================================
+parameters :
+#=========================================
+
+  TESTS_LIST :
+    description : Scenarios of the testbench, separated by ',' (empty, build and elaboration only)
+    datatype    : str
+    paramtype   : generic
+
+  #---------------------------------------
+  # Generics of tb_jtag (sim_jtag*)
+  #---------------------------------------
+  IR_WIDTH :
+    description : Width of the instruction register of the TAP
+    datatype    : int
+    default     : 5
+    paramtype   : generic
+
+  TRST_ENABLE :
+    description : true, the TAP uses TRST
+    datatype    : bool
+    default     : true
+    paramtype   : generic
