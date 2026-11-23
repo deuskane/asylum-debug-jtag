@@ -7,6 +7,56 @@ on:
     branches: [ main, develop ]
 jobs:
 #<GENERATE_BEGIN>
+  sim_bitbang:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang
+
+  sim_bitbang_backpressure:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_backpressure
+
+  sim_bitbang_blink:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_blink
+
+  sim_bitbang_dr_scan:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_dr_scan
+
+  sim_bitbang_idcode:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_idcode
+
+  sim_bitbang_ignored:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_ignored
+
+  sim_bitbang_read:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_read
+
+  sim_bitbang_reset:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_reset
+
+  sim_bitbang_uart:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_uart
+
+  sim_bitbang_write:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_bitbang_write
+
   sim_jtag:
     uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
     with:
@@ -82,6 +132,11 @@ jobs:
     with:
       name: sim_jtag_user
 
+  sim_openocd:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: sim_openocd
+
   sim_pad_mux:
     uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
     with:
@@ -112,6 +167,11 @@ jobs:
     with:
       name: lint_ghdl
 
+  lint_ghdl_synth_bitbang:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: lint_ghdl_synth_bitbang
+
   lint_ghdl_synth_default:
     uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
     with:
@@ -121,6 +181,11 @@ jobs:
     uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
     with:
       name: lint_ghdl_synth_min
+
+  syn_bitbang:
+    uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
+    with:
+      name: syn_bitbang
 
   syn_default:
     uses: deuskane/asylum-ci/.github/workflows/vhdl-ci.yml@main
@@ -133,7 +198,7 @@ jobs:
       name: syn_min
 
   badges:
-    needs: [sim_jtag, sim_jtag_bypass, sim_jtag_idcode, sim_jtag_ir8, sim_jtag_ir_capture, sim_jtag_pause, sim_jtag_reset_tms, sim_jtag_reset_trst, sim_jtag_tdo_en, sim_jtag_tdr_in, sim_jtag_tdr_inout, sim_jtag_tdr_out, sim_jtag_tdr_reset, sim_jtag_unclaimed, sim_jtag_user, sim_pad_mux, sim_pad_mux_5x2, sim_pad_mux_default, sim_pad_mux_output_enable, sim_pad_mux_select, lint_ghdl, lint_ghdl_synth_default, lint_ghdl_synth_min, syn_default, syn_min]
+    needs: [sim_bitbang, sim_bitbang_backpressure, sim_bitbang_blink, sim_bitbang_dr_scan, sim_bitbang_idcode, sim_bitbang_ignored, sim_bitbang_read, sim_bitbang_reset, sim_bitbang_uart, sim_bitbang_write, sim_jtag, sim_jtag_bypass, sim_jtag_idcode, sim_jtag_ir8, sim_jtag_ir_capture, sim_jtag_pause, sim_jtag_reset_tms, sim_jtag_reset_trst, sim_jtag_tdo_en, sim_jtag_tdr_in, sim_jtag_tdr_inout, sim_jtag_tdr_out, sim_jtag_tdr_reset, sim_jtag_unclaimed, sim_jtag_user, sim_openocd, sim_pad_mux, sim_pad_mux_5x2, sim_pad_mux_default, sim_pad_mux_output_enable, sim_pad_mux_select, lint_ghdl, lint_ghdl_synth_bitbang, lint_ghdl_synth_default, lint_ghdl_synth_min, syn_bitbang, syn_default, syn_min]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
