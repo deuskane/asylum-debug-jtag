@@ -21,9 +21,13 @@ CAPI=2:
 #                               remote_bitbang byte stream (JTAG over a UART),
 #                               sim_bitbang_*, sim_openocd, lint_ghdl_synth_bitbang,
 #                               syn_bitbang
+# 2026-11-24  1.2.0    mrosiere tb_bitbang on the remote_bitbang BFM of
+#                               asylum:verification:uvvm 1.3.0, sim_openocd on
+#                               the co-simulation kit asylum:verification:openocd,
+#                               jtag_bitbang without NUMERIC_STD note at 0 ms
 #-----------------------------------------------------------------------------
 
-name        : asylum:debug:jtag:1.1.0
+name        : asylum:debug:jtag:1.2.0
 description : JTAG TAP, test data registers and pad multiplexer
 
 #=========================================
@@ -90,8 +94,9 @@ filesets:
       - ">=asylum:utils:pkg:1.10.0"
 
   #---------------------------------------
-  # Testbench of jtag_bitbang : commands as bytes on s_axis, real jtag_tap
-  # and one jtag_tdr_inout, one package per scenario
+  # Testbench of jtag_bitbang : commands as bytes on s_axis (remote_bitbang
+  # BFM of asylum_uvvm), real jtag_tap and one jtag_tdr_inout, one package
+  # per scenario
   #---------------------------------------
   sim_bitbang:
     files        :
@@ -110,25 +115,26 @@ filesets:
     file_type    : vhdlSource-2008
     depend       :
       - bitvis:verification:uvvm
+      # rbb_bfm_pkg (remote_bitbang BFM), jtag_ir_capture_monitor
+      - ">=asylum:verification:uvvm:1.3.0"
       # string_pkg list_length / list_item / list_contains (TESTS_LIST)
       - ">=asylum:utils:pkg:1.10.0"
       # uart_rx_axis, uart_tx_axis, uart_baud_rate_gen (scenario uart)
       - ">=asylum:communication:uart:3.0.0"
 
   #---------------------------------------
-  # Co-simulation with OpenOCD (remote_bitbang adapter over TCP), hooks in
-  # sim/openocd/cosim.sh
+  # Co-simulation with OpenOCD (remote_bitbang adapter over TCP) : rbb_axis,
+  # rbb_server.c and the hooks cosim.sh (copied to rbb/) of the co-simulation
+  # kit asylum:verification:openocd
   #---------------------------------------
   sim_openocd:
     files        :
-      - sim/openocd/rbb_pkg.vhd
       - sim/openocd/tb_bitbang_openocd.vhd
-      - sim/openocd/rbb_server.c : {file_type : user, copyto : openocd/rbb_server.c}
       - sim/openocd/jtag.cfg     : {file_type : user, copyto : openocd/jtag.cfg}
-      - sim/openocd/cosim.sh     : {file_type : user, copyto : openocd/cosim.sh}
     file_type    : vhdlSource-2008
     depend       :
       - bitvis:verification:uvvm
+      - ">=asylum:verification:openocd:1.0.0"
 
   #---------------------------------------
   syn:
@@ -631,7 +637,8 @@ targets:
   #---------------------------------------
   # Co-simulation : OpenOCD 0.12 (remote_bitbang adapter, TCP) drives
   # jtag_bitbang, jtag_tap and a TDR ; checks of sim/openocd/jtag.cfg.
-  # Needs openocd and gcc (sim/openocd/cosim.sh, hooks run in the work root)
+  # Needs openocd and gcc (rbb/cosim.sh of the kit, hooks run in the work
+  # root)
   #---------------------------------------
   sim_openocd:
   #---------------------------------------
@@ -672,16 +679,18 @@ scripts:
     cmd : [bash, yosys_synth.sh]
 
   #---------------------------------------
-  # Hooks of sim_openocd (cwd = work_root)
+  # Hooks of sim_openocd (cwd = work_root), cosim.sh of the kit
+  # asylum:verification:openocd : librbb.so, OpenOCD with jtag.cfg in the
+  # background, check of its "SCENARIO PASS" line
   #---------------------------------------
   cosim_build :
-    cmd : [bash, openocd/cosim.sh, build]
+    cmd : [bash, rbb/cosim.sh, build]
 
   cosim_start :
-    cmd : [bash, openocd/cosim.sh, start]
+    cmd : [bash, rbb/cosim.sh, start, openocd/jtag.cfg]
 
   cosim_check :
-    cmd : [bash, openocd/cosim.sh, check]
+    cmd : [bash, rbb/cosim.sh, check]
 
 #=========================================
 parameters :
