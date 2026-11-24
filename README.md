@@ -668,7 +668,7 @@ To run a list of scenarios, build the testbench once, then run the list without 
 
 ```bash
 make sim_jtag                    # build and elaboration (TESTS_LIST empty)
-fusesoc --cores-root . run --build-root build --no-export --run --target sim_jtag asylum:debug:jtag:1.1.0 --TESTS_LIST=idcode,pause,idcode
+fusesoc --cores-root . run --build-root build --no-export --run --target sim_jtag asylum:debug:jtag:1.2.0 --TESTS_LIST=idcode,pause,idcode
 ```
 
 To add a scenario: a package `tb_jtag_<name>_pkg` with a procedure `run` (in the `sim_jtag` fileset), its name in `C_TESTS` and its case in `run_test` of [tb_jtag_tests_pkg](sim/jtag/tb_jtag_tests_pkg.vhd), a `sim_jtag_<name>` target and the name in the `TESTS_LIST` of `sim_jtag_ir8` in [jtag.core](jtag.core), then `make mk/targets.txt` and `make ci_generate`.
