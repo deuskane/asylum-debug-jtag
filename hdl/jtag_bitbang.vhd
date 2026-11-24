@@ -6,7 +6,7 @@
 -- Author     : Mathieu Rosiere
 -- Company    :
 -- Created    : 2026-11-22
--- Last update: 2026-11-22
+-- Last update: 2026-11-24
 -- Platform   :
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -31,6 +31,8 @@
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created
+-- 2026-11-24  1.2.0    mrosiere Command converted to a character when taken
+--                               (no NUMERIC_STD metavalue note before reset)
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -64,7 +66,6 @@ end entity jtag_bitbang;
 
 architecture rtl of jtag_bitbang is
 
-  signal   cmd              : character;
   signal   s_axis_tready    : std_logic;
   signal   tdo              : std_logic;
 
@@ -77,8 +78,6 @@ architecture rtl of jtag_bitbang is
   signal   m_axis_tvalid_r  : std_logic;
 
 begin  -- architecture rtl
-
-  cmd           <= character'val(to_integer(unsigned(s_axis_tdata_i)));
 
   -- No new command while an answer is pending
   s_axis_tready <= not m_axis_tvalid_r;
@@ -108,9 +107,11 @@ begin  -- architecture rtl
         m_axis_tvalid_r <= '0';
       end if;
 
+      -- The byte is converted to a character only when it is taken : no
+      -- metavalue ('U' before the reset) given to to_integer
       if s_axis_tvalid_i = '1' and s_axis_tready = '1'
       then
-        case cmd is
+        case character'val(to_integer(unsigned(s_axis_tdata_i))) is
           -- '0' is x"30" : TCK, TMS and TDI are the bits 2, 1 and 0
           when '0' to '7' => tck_r           <= s_axis_tdata_i(2);
                              tms_r           <= s_axis_tdata_i(1);
