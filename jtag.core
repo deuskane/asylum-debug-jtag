@@ -119,19 +119,18 @@ filesets:
       - ">=asylum:communication:uart:3.0.0"
 
   #---------------------------------------
-  # Co-simulation with OpenOCD (remote_bitbang adapter over TCP), hooks in
-  # sim/openocd/cosim.sh
+  # Co-simulation with OpenOCD (remote_bitbang adapter over TCP) : rbb_axis,
+  # rbb_server.c and the hooks cosim.sh (copied to rbb/) of the co-simulation
+  # kit asylum:verification:openocd
   #---------------------------------------
   sim_openocd:
     files        :
-      - sim/openocd/rbb_pkg.vhd
       - sim/openocd/tb_bitbang_openocd.vhd
-      - sim/openocd/rbb_server.c : {file_type : user, copyto : openocd/rbb_server.c}
       - sim/openocd/jtag.cfg     : {file_type : user, copyto : openocd/jtag.cfg}
-      - sim/openocd/cosim.sh     : {file_type : user, copyto : openocd/cosim.sh}
     file_type    : vhdlSource-2008
     depend       :
       - bitvis:verification:uvvm
+      - ">=asylum:verification:openocd:1.0.0"
 
   #---------------------------------------
   syn:
@@ -634,7 +633,8 @@ targets:
   #---------------------------------------
   # Co-simulation : OpenOCD 0.12 (remote_bitbang adapter, TCP) drives
   # jtag_bitbang, jtag_tap and a TDR ; checks of sim/openocd/jtag.cfg.
-  # Needs openocd and gcc (sim/openocd/cosim.sh, hooks run in the work root)
+  # Needs openocd and gcc (rbb/cosim.sh of the kit, hooks run in the work
+  # root)
   #---------------------------------------
   sim_openocd:
   #---------------------------------------
@@ -675,16 +675,18 @@ scripts:
     cmd : [bash, yosys_synth.sh]
 
   #---------------------------------------
-  # Hooks of sim_openocd (cwd = work_root)
+  # Hooks of sim_openocd (cwd = work_root), cosim.sh of the kit
+  # asylum:verification:openocd : librbb.so, OpenOCD with jtag.cfg in the
+  # background, check of its "SCENARIO PASS" line
   #---------------------------------------
   cosim_build :
-    cmd : [bash, openocd/cosim.sh, build]
+    cmd : [bash, rbb/cosim.sh, build]
 
   cosim_start :
-    cmd : [bash, openocd/cosim.sh, start]
+    cmd : [bash, rbb/cosim.sh, start, openocd/jtag.cfg]
 
   cosim_check :
-    cmd : [bash, openocd/cosim.sh, check]
+    cmd : [bash, rbb/cosim.sh, check]
 
 #=========================================
 parameters :

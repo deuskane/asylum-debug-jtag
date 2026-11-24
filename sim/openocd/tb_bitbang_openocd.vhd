@@ -6,26 +6,27 @@
 -- Author     : Mathieu Rosiere
 -- Company    :
 -- Created    : 2026-11-22
--- Last update: 2026-11-22
+-- Last update: 2026-11-24
 -- Platform   :
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description:
 --  Co-simulation of jtag_bitbang with OpenOCD : the bytes of the OpenOCD
 --  remote_bitbang adapter (TCP) go to s_axis, the answers from m_axis back
---  to OpenOCD (rbb_server.c through VHPIDIRECT, one byte per clk cycle at
---  most). jtag_bitbang drives jtag_tap (IR 5 bits, IDCODE x4A7C0E35) and a
+--  to OpenOCD (rbb_axis of the co-simulation kit asylum:verification:openocd,
+--  BYTE mode of its rbb_server.c, one byte per clk cycle at most).
+--  jtag_bitbang drives jtag_tap (IR 5 bits, IDCODE x4A7C0E35) and a
 --  jtag_tdr_inout of 8 bits (opcode 2, data_o looped back to data_i).
---  OpenOCD runs the checks of sim/openocd/jtag.cfg (hooks in
---  sim/openocd/cosim.sh) ; the testbench checks that OpenOCD used every
---  command : 'R', TRST, SRST and the LED. End when OpenOCD closes the
---  connection.
+--  OpenOCD runs the checks of sim/openocd/jtag.cfg (hooks : cosim.sh of the
+--  kit) ; the testbench checks that OpenOCD used every command : 'R', TRST,
+--  SRST and the LED. End when OpenOCD closes the connection.
 -------------------------------------------------------------------------------
 -- Copyright (c) 2026
 -------------------------------------------------------------------------------
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created
+-- 2026-11-24  1.2.0    mrosiere rbb_axis of the co-simulation kit
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -38,7 +39,7 @@ context uvvm_util.uvvm_util_context;
 library asylum;
 use     asylum.jtag_pkg.all;
 
-use     work.rbb_pkg.all;
+library asylum_uvvm;
 
 entity tb_bitbang_openocd is
 end entity tb_bitbang_openocd;
@@ -54,8 +55,8 @@ architecture sim of tb_bitbang_openocd is
   signal   arst_b         : std_logic := '0';
 
   -- DUT
-  signal   s_tdata        : std_logic_vector(8-1 downto 0) := x"00";
-  signal   s_tvalid       : std_logic := '0';
+  signal   s_tdata        : std_logic_vector(8-1 downto 0);
+  signal   s_tvalid       : std_logic;
   signal   s_tready       : std_logic;
   signal   m_tdata        : std_logic_vector(8-1 downto 0);
   signal   m_tvalid       : std_logic;
@@ -64,6 +65,7 @@ architecture sim of tb_bitbang_openocd is
   signal   srst           : std_logic;
   signal   blink          : std_logic;
   signal   closed         : boolean   := false;
+  signal   quit           : std_logic;
 
   -- TAP and TDR
   signal   tap_tck        : std_logic;
@@ -144,31 +146,20 @@ begin  -- architecture sim
   -----------------------------------------------------------------------------
   -- Bytes of OpenOCD to s_axis, answers of m_axis (always taken) to OpenOCD
   -----------------------------------------------------------------------------
-  p_rbb : process
-    variable v_byte : integer;
-  begin
-    wait until arst_b = '1';
-    while not closed loop
-      wait until rising_edge(clk);
-      if m_tvalid = '1'
-      then
-        rbb_send(to_integer(unsigned(m_tdata)));
-      end if;
-      if s_tvalid = '0' or s_tready = '1'
-      then
-        v_byte := rbb_recv;
-        if v_byte >= 0
-        then
-          s_tdata  <= std_logic_vector(to_unsigned(v_byte, 8));
-          s_tvalid <= '1';
-        else
-          s_tvalid <= '0';
-          closed   <= v_byte = RBB_CLOSED;
-        end if;
-      end if;
-    end loop;
-    wait;
-  end process p_rbb;
+  ins_rbb : entity asylum_uvvm.rbb_axis
+    port map
+    (clk_i           => clk
+    ,arst_b_i        => arst_b
+    ,m_axis_tdata_o  => s_tdata
+    ,m_axis_tvalid_o => s_tvalid
+    ,m_axis_tready_i => s_tready
+    ,s_axis_tdata_i  => m_tdata
+    ,s_axis_tvalid_i => m_tvalid
+    ,s_axis_tready_o => open
+    ,quit_o          => quit
+    );
+
+  closed <= quit = '1';
 
   -----------------------------------------------------------------------------
   -- Commands used by OpenOCD, end of the simulation
