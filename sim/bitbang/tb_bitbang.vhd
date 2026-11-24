@@ -6,22 +6,25 @@
 -- Author     : Mathieu Rosiere
 -- Company    :
 -- Created    : 2026-11-22
--- Last update: 2026-11-22
+-- Last update: 2026-11-24
 -- Platform   :
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description:
 --  Testbench of jtag_bitbang (clk 100 MHz) : the commands of OpenOCD are
---  sent as bytes on s_axis (tb_bitbang_bfm_pkg), jtag_bitbang drives the
---  real jtag_tap of the IP (IR 5 bits) with one jtag_tdr_inout of 8 bits
---  (opcode 2).
+--  sent as bytes on s_axis by the remote_bitbang BFM rbb_bfm_pkg of
+--  asylum-verification-uvvm (helpers in tb_bitbang_bfm_pkg), jtag_bitbang
+--  drives the real jtag_tap of the IP (IR 5 bits) with one jtag_tdr_inout
+--  of 8 bits (opcode 2).
 --  Scenario uart : the commands go through the UART (UVVM UART BFM ->
 --  uart_rx_axis -> jtag_bitbang -> uart_tx_axis -> UVVM UART BFM), 16 clock
 --  cycles per bit ; an overrun or a framing error of uart_rx_axis is an
 --  error.
---  Monitor of m_axis : takes the answers (m_axis_tready from the scenario),
---  each one must be '0' or '1', and a pending answer (tvalid = 1, tready =
---  0) must stay valid and unchanged.
+--  Monitors : answers taken on m_axis (m_axis_tready from the scenario) or
+--  received through the UART (rbb_axis_monitor, rbb_uart_monitor : each one
+--  must be '0' or '1') ; a pending answer (tvalid = 1, tready = 0) must stay
+--  valid and unchanged ; the Capture-IR value "00001" of each IR scan, on
+--  the pins of the TAP (jtag_ir_capture_monitor).
 --  TESTS_LIST : scenarios run in sequence, separated by ',' (names in
 --  tb_bitbang_tests_pkg), each one after a reset pulse ; "" : build and
 --  elaboration only.
@@ -31,6 +34,8 @@
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created
+-- 2026-11-24  1.2.0    mrosiere remote_bitbang BFM and its answer monitors,
+--                               jtag_ir_capture_monitor
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -46,6 +51,10 @@ use     bitvis_vip_uart.uart_bfm_pkg.all;
 library asylum;
 use     asylum.jtag_pkg.all;
 use     asylum.string_pkg.all;
+
+library asylum_uvvm;
+use     asylum_uvvm.jtag_bfm_pkg.all;
+use     asylum_uvvm.rbb_bfm_pkg.all;
 
 use     work.tb_bitbang_bfm_pkg.all;
 use     work.tb_bitbang_tests_pkg.all;
@@ -102,10 +111,11 @@ architecture sim of tb_bitbang is
   signal   uart_stop      : std_logic;
 
   -- Answers taken on m_axis and through the UART
-  signal   axis_cnt       : natural;
-  signal   axis_answers   : std_logic_vector(0 to C_MAX_ANSWERS-1);
-  signal   uart_cnt       : natural;
-  signal   uart_answers   : std_logic_vector(0 to C_MAX_ANSWERS-1);
+  signal   axis_answers   : t_rbb_answers;
+  signal   uart_answers   : t_rbb_answers;
+
+  -- Pins of the TAP (Capture-IR monitor)
+  signal   jtag_if        : t_jtag_if;
 
   -- Scenarios
   signal   tb_req         : tb_req_t  := C_TB_REQ_IDLE;
@@ -135,10 +145,12 @@ begin  -- architecture sim
     );
 
   -- Commands and answers : scenario (s_axis, m_axis) or UART
-  s_tdata   <= rx_tdata  when tb_req.uart else tb_req.s_tdata;
-  s_tvalid  <= rx_tvalid when tb_req.uart else tb_req.s_tvalid;
+  s_tdata   <= rx_tdata  when tb_req.uart else tb_req.rbb.tdata;
+  s_tvalid  <= rx_tvalid when tb_req.uart else tb_req.rbb.tvalid;
   m_tready  <= tx_tready when tb_req.uart else tb_req.m_tready;
   tx_tvalid <= m_tvalid  when tb_req.uart else '0';
+
+  tb_req.rbb.tready <= s_tready;
 
   -----------------------------------------------------------------------------
   -- UART : receiver of the commands, transmitter of the answers
@@ -163,7 +175,7 @@ begin  -- architecture sim
     port map
     (clk_i                   => clk
     ,arst_b_i                => arst_b
-    ,uart_rx_i               => tb_req.uart_rx
+    ,uart_rx_i               => tb_req.rbb.tx
     ,m_axis_tdata_o          => rx_tdata
     ,m_axis_parity_error_o   => open
     ,m_axis_tvalid_o         => rx_tvalid
@@ -274,22 +286,21 @@ begin  -- architecture sim
   tb_rsp.tlr      <= tap_tlr;
   tb_rsp.ir       <= tap_ir;
 
-  tb_rsp.answer_cnt <= uart_cnt     when tb_req.uart else axis_cnt;
-  tb_rsp.answers    <= uart_answers when tb_req.uart else axis_answers;
+  tb_rsp.answers  <= uart_answers when tb_req.uart else axis_answers;
 
   -----------------------------------------------------------------------------
-  -- Monitor of m_axis : answers taken, '0' or '1' only, a pending answer
-  -- stays valid and unchanged (with the UART too)
+  -- Answers taken on m_axis ('0' or '1' only), a pending answer stays valid
+  -- and unchanged (with the UART too)
   -----------------------------------------------------------------------------
-  p_answers : process
+  rbb_axis_monitor(clk, m_tdata, m_tvalid, m_tready, axis_answers, C_SCOPE);
+
+  p_pending : process
     variable v_pending : boolean := false;
     variable v_data    : std_logic_vector(8-1 downto 0);
   begin
     wait until rising_edge(clk);
     if arst_b = '0'
     then
-      axis_cnt          <= 0;
-      axis_answers      <= (others => 'U');
       v_pending         := false;
     else
       if v_pending and (m_tvalid /= '1' or m_tdata /= v_data)
@@ -298,50 +309,28 @@ begin  -- architecture sim
       end if;
       v_pending := m_tvalid = '1' and m_tready = '0';
       v_data    := m_tdata;
-
-      if m_tvalid = '1' and m_tready = '1'
-      then
-        if m_tdata /= to_byte('0') and m_tdata /= to_byte('1')
-        then
-          alert(ERROR, "Answer x" & to_hstring(m_tdata) & " is not '0' or '1'", C_SCOPE);
-        end if;
-        if axis_cnt < C_MAX_ANSWERS
-        then
-          axis_answers(axis_cnt) <= m_tdata(0);
-        end if;
-        axis_cnt <= axis_cnt + 1;
-      end if;
     end if;
-  end process p_answers;
+  end process p_pending;
 
   -----------------------------------------------------------------------------
-  -- Answers received by the UART BFM (scenario uart)
+  -- Answers received through the UART (scenario uart)
   -----------------------------------------------------------------------------
   uart_stop <= '0' when tb_req.uart else '1';
 
-  p_uart_answers : process
-    variable v_data    : std_logic_vector(8-1 downto 0);
-  begin
-    if not tb_req.uart
-    then
-      uart_cnt     <= 0;
-      uart_answers <= (others => 'U');
-      wait until tb_req.uart;
-    end if;
-    uart_receive(v_data, "Answer", uart_tx, uart_stop, C_UART_CONFIG, C_SCOPE);
-    if tb_req.uart
-    then
-      if v_data /= to_byte('0') and v_data /= to_byte('1')
-      then
-        alert(ERROR, "Answer x" & to_hstring(v_data) & " received by the UART is not '0' or '1'", C_SCOPE);
-      end if;
-      if uart_cnt < C_MAX_ANSWERS
-      then
-        uart_answers(uart_cnt) <= v_data(0);
-      end if;
-      uart_cnt <= uart_cnt + 1;
-    end if;
-  end process p_uart_answers;
+  rbb_uart_monitor(uart_tx, uart_stop, uart_answers, C_SCOPE, C_RBB_UART_CONFIG);
+
+  -----------------------------------------------------------------------------
+  -- Capture-IR value of each IR scan ("00001"), on the pins of the TAP ;
+  -- back to Test-Logic-Reset with the reset of each scenario
+  -----------------------------------------------------------------------------
+  jtag_if.tck    <= jtag_ini.tck;
+  jtag_if.tms    <= jtag_ini.tms;
+  jtag_if.tdi    <= jtag_ini.tdi;
+  jtag_if.trst_b <= jtag_ini.trst_n and arst_b;
+  jtag_if.tdo    <= jtag_tgt.tdo when jtag_tgt.tdo_en = '1' else
+                    '1';
+
+  jtag_ir_capture_monitor(jtag_if, "00001", C_SCOPE, shared_msg_id_panel, C_JTAG_CONFIG);
 
   -----------------------------------------------------------------------------
   -- Sequencer

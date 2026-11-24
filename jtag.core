@@ -90,8 +90,9 @@ filesets:
       - ">=asylum:utils:pkg:1.10.0"
 
   #---------------------------------------
-  # Testbench of jtag_bitbang : commands as bytes on s_axis, real jtag_tap
-  # and one jtag_tdr_inout, one package per scenario
+  # Testbench of jtag_bitbang : commands as bytes on s_axis (remote_bitbang
+  # BFM of asylum_uvvm), real jtag_tap and one jtag_tdr_inout, one package
+  # per scenario
   #---------------------------------------
   sim_bitbang:
     files        :
@@ -110,6 +111,8 @@ filesets:
     file_type    : vhdlSource-2008
     depend       :
       - bitvis:verification:uvvm
+      # rbb_bfm_pkg (remote_bitbang BFM), jtag_ir_capture_monitor
+      - ">=asylum:verification:uvvm:1.3.0"
       # string_pkg list_length / list_item / list_contains (TESTS_LIST)
       - ">=asylum:utils:pkg:1.10.0"
       # uart_rx_axis, uart_tx_axis, uart_baud_rate_gen (scenario uart)

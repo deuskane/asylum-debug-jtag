@@ -6,7 +6,7 @@
 -- Author     : Mathieu Rosiere
 -- Company    :
 -- Created    : 2026-11-22
--- Last update: 2026-11-22
+-- Last update: 2026-11-24
 -- Platform   :
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -22,6 +22,7 @@
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created
+-- 2026-11-24  1.2.0    mrosiere remote_bitbang BFM of asylum-verification-uvvm
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -53,6 +54,7 @@ package body tb_bitbang_ignored_pkg is
     ) is
     constant C_COMMANDS  : string := "01234567RrstuBb";
     variable v_state     : std_logic_vector(6-1 downto 0);
+    constant C_FIRST     : natural := tb_rsp.answers.cnt;
 
     function is_command(b : natural) return boolean is
     begin
@@ -104,7 +106,7 @@ package body tb_bitbang_ignored_pkg is
       end loop;
 
       check_value(state            , v_state, ERROR, "Outputs after the 241 ignored bytes", C_TB_SCOPE);
-      check_value(tb_rsp.answer_cnt, 0      , ERROR, "No answer to the ignored bytes"     , C_TB_SCOPE);
+      check_value(tb_rsp.answers.cnt, C_FIRST, ERROR, "No answer to the ignored bytes"    , C_TB_SCOPE);
     end loop;
   end procedure run;
 

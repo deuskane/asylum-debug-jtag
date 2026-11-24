@@ -6,7 +6,7 @@
 -- Author     : Mathieu Rosiere
 -- Company    :
 -- Created    : 2026-11-22
--- Last update: 2026-11-22
+-- Last update: 2026-11-24
 -- Platform   :
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -20,6 +20,7 @@
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created
+-- 2026-11-24  1.2.0    mrosiere remote_bitbang BFM of asylum-verification-uvvm
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -50,6 +51,7 @@ package body tb_bitbang_write_pkg is
     signal   clk         : in    std_logic
     ) is
     variable v_cmd       : natural;
+    constant C_FIRST     : natural := tb_rsp.answers.cnt;
   begin
     check_value(tb_rsp.pins, "010", ERROR, "TCK, TMS, TDI after the reset", C_TB_SCOPE);
     for i in 0 to 15 loop
@@ -62,7 +64,7 @@ package body tb_bitbang_write_pkg is
     check_value(tb_rsp.trst_n    , '1', ERROR, "TRST* not asserted by the write commands", C_TB_SCOPE);
     check_value(tb_rsp.srst      , '0', ERROR, "SRST not asserted by the write commands" , C_TB_SCOPE);
     check_value(tb_rsp.blink     , '0', ERROR, "LED off"                                 , C_TB_SCOPE);
-    check_value(tb_rsp.answer_cnt, 0  , ERROR, "No answer to the write commands"         , C_TB_SCOPE);
+    check_value(tb_rsp.answers.cnt, C_FIRST, ERROR, "No answer to the write commands"    , C_TB_SCOPE);
   end procedure run;
 
 end package body tb_bitbang_write_pkg;

@@ -6,7 +6,7 @@
 -- Author     : Mathieu Rosiere
 -- Company    :
 -- Created    : 2026-11-22
--- Last update: 2026-11-22
+-- Last update: 2026-11-24
 -- Platform   :
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -20,6 +20,7 @@
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created
+-- 2026-11-24  1.2.0    mrosiere remote_bitbang BFM of asylum-verification-uvvm
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -61,7 +62,7 @@ package body tb_bitbang_read_pkg is
     tb_write_ir(C_IR_BYPASS, "BYPASS", tb_req, tb_rsp, clk);
 
     -- DR scan through BYPASS : one bit delay, captured 0
-    tb_scan(false, x"A5", v_out, tb_req, tb_rsp, clk);
+    tb_scan_dr(x"A5", v_out, tb_req, tb_rsp, clk);
     check_value(v_out, x"4A", ERROR, "DR scan of xA5 through BYPASS", C_TB_SCOPE);
 
     -- One 'R' per TDO value in Shift-DR

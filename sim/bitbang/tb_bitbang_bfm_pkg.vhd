@@ -6,7 +6,7 @@
 -- Author     : Mathieu Rosiere
 -- Company    :
 -- Created    : 2026-11-22
--- Last update: 2026-11-22
+-- Last update: 2026-11-24
 -- Platform   :
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
@@ -14,16 +14,19 @@
 --  Constants, types and helpers shared by the scenarios of tb_bitbang :
 --  configuration of the TAP and of the TDR of the testbench, records between
 --  the scenarios and the testbench (tb_req_t : stimuli, tb_rsp_t : outputs
---  of the DUT and answers collected by the monitor), and the bytes OpenOCD
---  sends (remote_bitbang driver over the bitbang driver of OpenOCD 0.12) :
---  one command (tb_send : on s_axis, or through the UART with the UVVM UART
---  BFM), TMS sequence (tb_tms), IR / DR scan (tb_scan), TDO read (tb_read).
+--  of the DUT and answers collected by the monitor), and one call of the
+--  remote_bitbang BFM rbb_bfm_pkg of asylum-verification-uvvm per helper
+--  (the bytes OpenOCD 0.12 sends) : one command (tb_send, tb_write : on
+--  s_axis, or through the UART with tb_req.uart), TMS sequence (tb_tms),
+--  TDO read (tb_read), IR scan (tb_write_ir), DR scan (tb_scan_dr,
+--  tb_check_dr).
 -------------------------------------------------------------------------------
 -- Copyright (c) 2026
 -------------------------------------------------------------------------------
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created
+-- 2026-11-24  1.2.0    mrosiere Byte encoder replaced by rbb_bfm_pkg
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -35,6 +38,10 @@ context uvvm_util.uvvm_util_context;
 
 library bitvis_vip_uart;
 use     bitvis_vip_uart.uart_bfm_pkg.all;
+
+library asylum_uvvm;
+use     asylum_uvvm.jtag_bfm_pkg.all;
+use     asylum_uvvm.rbb_bfm_pkg.all;
 
 package tb_bitbang_bfm_pkg is
 
@@ -52,31 +59,30 @@ package tb_bitbang_bfm_pkg is
   constant C_IR_BYPASS    : natural  := 2**C_IR_WIDTH-1;
   constant C_TDR_WIDTH    : positive := 8;
 
-  -- Answers kept by the monitor (from the reset of the scenario)
-  constant C_MAX_ANSWERS  : natural  := 256;
-
   -- UART of the scenario uart : 8 data bits, no parity, one stop bit, 16
   -- clock cycles per bit (cfg_baud_tick_cnt_max_i of uart_baud_rate_gen)
   constant C_UART_CNT_MAX : natural  := 15;
   constant C_UART_BIT     : time     := (C_UART_CNT_MAX+1)*C_CLK_PERIOD;
   constant C_UART_CONFIG  : t_uart_bfm_config;
 
+  -- remote_bitbang BFM : commands on s_axis (C_RBB_CONFIG) or through the
+  -- UART (C_RBB_UART_CONFIG) ; the TAP alone in the chain (C_JTAG_CONFIG)
+  constant C_RBB_CONFIG      : t_rbb_bfm_config;
+  constant C_RBB_UART_CONFIG : t_rbb_bfm_config;
+  constant C_JTAG_CONFIG     : t_jtag_bfm_config;
+
   -- Stimuli of the scenarios
   type tb_req_t is record
-    s_tdata         : std_logic_vector(8-1 downto 0);               -- Command to the DUT
-    s_tvalid        : std_logic;
+    rbb             : t_rbb_if;                                     -- Commands to the DUT (s_axis), or to the UART (rbb.tx)
     m_tready        : std_logic;                                    -- Answers taken from the DUT
     tdr_data        : std_logic_vector(C_TDR_WIDTH-1 downto 0);     -- data_i of the TDR
     uart            : boolean;                                      -- true : commands and answers through the UART
-    uart_rx         : std_logic;                                    -- Serial input of the UART (UART BFM)
   end record tb_req_t;
 
-  constant C_TB_REQ_IDLE  : tb_req_t := (s_tdata  => x"00",
-                                         s_tvalid => '0',
+  constant C_TB_REQ_IDLE  : tb_req_t := (rbb      => init_rbb_if_signals,
                                          m_tready => '1',
                                          tdr_data => (others => '0'),
-                                         uart     => false,
-                                         uart_rx  => '1');
+                                         uart     => false);
 
   -- Outputs of the DUT, of the TAP and of the monitor
   type tb_rsp_t is record
@@ -90,11 +96,10 @@ package tb_bitbang_bfm_pkg is
     tlr             : std_logic;                                    -- tlr_o of the TAP
     ir              : std_logic_vector(C_IR_WIDTH-1 downto 0);      -- ir_o of the TAP
     tdr_data        : std_logic_vector(C_TDR_WIDTH-1 downto 0);     -- data_o of the TDR
-    answer_cnt      : natural;                                      -- Answers taken since the reset
-    answers         : std_logic_vector(0 to C_MAX_ANSWERS-1);       -- Their bits ('0' : 0, '1' : 1)
+    answers         : t_rbb_answers;                                -- Answers to 'R' (count since the start of the simulation)
   end record tb_rsp_t;
 
-  -- Byte of a command
+  -- Byte of a character
   function to_byte(cmd : character) return std_logic_vector;
 
   -- One command : byte on s_axis, returns after the handshake (the outputs
@@ -117,13 +122,6 @@ package tb_bitbang_bfm_pkg is
     signal   clk          : in    std_logic
     );
 
-  -- Wait until num answers were taken since the reset
-  procedure tb_wait_answers(
-    constant num          : in    natural;
-    constant msg          : in    string;
-    signal   tb_rsp       : in    tb_rsp_t
-    );
-
   -- 'R', then wait for its answer
   procedure tb_read(
     variable tdo          : out   std_logic;
@@ -132,8 +130,7 @@ package tb_bitbang_bfm_pkg is
     signal   clk          : in    std_logic
     );
 
-  -- TCK cycles with the TMS sequence (left first), then TCK low, as
-  -- bitbang_state_move of OpenOCD
+  -- TCK cycles with the TMS sequence (left first), then TCK low
   procedure tb_tms(
     constant tms          : in    std_logic_vector;
     signal   tb_req       : inout tb_req_t;
@@ -141,11 +138,9 @@ package tb_bitbang_bfm_pkg is
     signal   clk          : in    std_logic
     );
 
-  -- IR scan (ir) or DR scan from Run-Test/Idle back to Run-Test/Idle, as
-  -- bitbang_scan of OpenOCD : for each bit (LSB first) TCK low with TMS and
-  -- TDI, 'R', TCK high ; data_out : the answers (TDO, LSB first)
-  procedure tb_scan(
-    constant ir           : in    boolean;
+  -- DR scan from Run-Test/Idle back to Run-Test/Idle ; data_out : the
+  -- answers to 'R' (TDO)
+  procedure tb_scan_dr(
     constant data         : in    std_logic_vector;
     variable data_out     : out   std_logic_vector;
     signal   tb_req       : inout tb_req_t;
@@ -153,7 +148,8 @@ package tb_bitbang_bfm_pkg is
     signal   clk          : in    std_logic
     );
 
-  -- IR scan of opcode, then check of ir_o
+  -- IR scan of opcode, then check of ir_o (the Capture-IR value "00001" is
+  -- checked by jtag_ir_capture_monitor in tb_bitbang)
   procedure tb_write_ir(
     constant opcode       : in    natural;
     constant msg          : in    string;
@@ -186,6 +182,37 @@ package body tb_bitbang_bfm_pkg is
 
   constant C_UART_CONFIG  : t_uart_bfm_config := uart_config;
 
+  function rbb_config(uart : boolean) return t_rbb_bfm_config is
+    variable v_config : t_rbb_bfm_config := C_RBB_BFM_CONFIG_DEFAULT;
+  begin
+    v_config.uart        := uart;
+    v_config.uart_config := C_UART_CONFIG;
+    v_config.timeout     := C_TIMEOUT;
+    return v_config;
+  end function rbb_config;
+
+  constant C_RBB_CONFIG      : t_rbb_bfm_config := rbb_config(false);
+  constant C_RBB_UART_CONFIG : t_rbb_bfm_config := rbb_config(true);
+
+  function jtag_config return t_jtag_bfm_config is
+    variable v_config : t_jtag_bfm_config := C_JTAG_BFM_CONFIG_DEFAULT;
+  begin
+    v_config.ir_width := C_IR_WIDTH;
+    return v_config;
+  end function jtag_config;
+
+  constant C_JTAG_CONFIG     : t_jtag_bfm_config := jtag_config;
+
+  -- Configuration of the BFM for the transport of the scenario
+  function tb_config(tb_req : tb_req_t) return t_rbb_bfm_config is
+  begin
+    if tb_req.uart
+    then
+      return C_RBB_UART_CONFIG;
+    end if;
+    return C_RBB_CONFIG;
+  end function tb_config;
+
   function to_byte(cmd : character) return std_logic_vector is
   begin
     return std_logic_vector(to_unsigned(character'pos(cmd), 8));
@@ -198,23 +225,14 @@ package body tb_bitbang_bfm_pkg is
     signal   clk          : in    std_logic
     ) is
   begin
-    if tb_req.uart
-    then
-      uart_transmit(data_value => to_byte(cmd),
-                    msg        => "Command '" & cmd & "'",
-                    tx         => tb_req.uart_rx,
-                    config     => C_UART_CONFIG,
-                    scope      => C_TB_SCOPE);
-    else
-      tb_req.s_tdata  <= to_byte(cmd);
-      tb_req.s_tvalid <= '1';
-      wait until rising_edge(clk) and tb_rsp.s_tready = '1' for C_TIMEOUT;
-      if not (rising_edge(clk) and tb_rsp.s_tready = '1')
-      then
-        alert(ERROR, "Command '" & cmd & "' not taken (s_axis_tready low)", C_TB_SCOPE);
-      end if;
-      tb_req.s_tvalid <= '0';
-    end if;
+    -- ext_proc_call : no log per byte (the ignored bytes are not printable)
+    rbb_command(cmd           => (1 => cmd),
+                msg           => "Command x" & to_hstring(to_byte(cmd)),
+                clk           => clk,
+                rbb_if        => tb_req.rbb,
+                scope         => C_TB_SCOPE,
+                config        => tb_config(tb_req),
+                ext_proc_call => "tb_send");
   end procedure tb_send;
 
   procedure tb_write(
@@ -225,26 +243,9 @@ package body tb_bitbang_bfm_pkg is
     signal   tb_rsp       : in    tb_rsp_t;
     signal   clk          : in    std_logic
     ) is
-    constant C_CMD        : natural := character'pos('0') + to_integer(unsigned'(tck & tms & tdi));
   begin
-    tb_send(character'val(C_CMD), tb_req, tb_rsp, clk);
+    tb_send(rbb_write_cmd(tck, tms, tdi)(1), tb_req, tb_rsp, clk);
   end procedure tb_write;
-
-  procedure tb_wait_answers(
-    constant num          : in    natural;
-    constant msg          : in    string;
-    signal   tb_rsp       : in    tb_rsp_t
-    ) is
-  begin
-    if tb_rsp.answer_cnt < num
-    then
-      wait until tb_rsp.answer_cnt >= num for C_TIMEOUT;
-    end if;
-    if tb_rsp.answer_cnt /= num
-    then
-      alert(ERROR, "Answers to 'R' : " & integer'image(tb_rsp.answer_cnt) & " instead of " & integer'image(num) & ". " & msg, C_TB_SCOPE);
-    end if;
-  end procedure tb_wait_answers;
 
   procedure tb_read(
     variable tdo          : out   std_logic;
@@ -252,11 +253,14 @@ package body tb_bitbang_bfm_pkg is
     signal   tb_rsp       : in    tb_rsp_t;
     signal   clk          : in    std_logic
     ) is
-    constant C_FIRST      : natural := tb_rsp.answer_cnt;
   begin
-    tb_send('R', tb_req, tb_rsp, clk);
-    tb_wait_answers(C_FIRST+1, "'R'", tb_rsp);
-    tdo := tb_rsp.answers(C_FIRST);
+    rbb_read(tdo          => tdo,
+             msg          => "TDO",
+             clk          => clk,
+             rbb_if       => tb_req.rbb,
+             answers      => tb_rsp.answers,
+             scope        => C_TB_SCOPE,
+             config       => tb_config(tb_req));
   end procedure tb_read;
 
   procedure tb_tms(
@@ -266,51 +270,32 @@ package body tb_bitbang_bfm_pkg is
     signal   clk          : in    std_logic
     ) is
   begin
-    for i in tms'range loop
-      tb_write('0', tms(i), '0', tb_req, tb_rsp, clk);
-      tb_write('1', tms(i), '0', tb_req, tb_rsp, clk);
-    end loop;
-    tb_write('0', tms(tms'right), '0', tb_req, tb_rsp, clk);
+    rbb_tms(tms           => tms,
+            msg           => "TMS",
+            clk           => clk,
+            rbb_if        => tb_req.rbb,
+            scope         => C_TB_SCOPE,
+            config        => tb_config(tb_req));
   end procedure tb_tms;
 
-  procedure tb_scan(
-    constant ir           : in    boolean;
+  procedure tb_scan_dr(
     constant data         : in    std_logic_vector;
     variable data_out     : out   std_logic_vector;
     signal   tb_req       : inout tb_req_t;
     signal   tb_rsp       : in    tb_rsp_t;
     signal   clk          : in    std_logic
     ) is
-    alias    v_data       : std_logic_vector(data'length-1 downto 0) is data;
-    variable v_out        : std_logic_vector(data'length-1 downto 0);
-    variable v_tms        : std_logic;
-    constant C_FIRST      : natural := tb_rsp.answer_cnt;
   begin
-    -- Run-Test/Idle -> Select-DR -> (Select-IR) -> Capture -> Shift
-    if ir
-    then
-      tb_tms("1100", tb_req, tb_rsp, clk);
-    else
-      tb_tms("100" , tb_req, tb_rsp, clk);
-    end if;
-
-    -- Shift, the last bit with TMS = 1 (Exit1)
-    for i in 0 to data'length-1 loop
-      v_tms := '1' when i = data'length-1 else '0';
-      tb_write('0', v_tms, v_data(i), tb_req, tb_rsp, clk);
-      tb_send ('R', tb_req, tb_rsp, clk);
-      tb_write('1', v_tms, v_data(i), tb_req, tb_rsp, clk);
-    end loop;
-
-    -- Exit1 -> Update -> Run-Test/Idle
-    tb_tms("10", tb_req, tb_rsp, clk);
-
-    tb_wait_answers(C_FIRST+data'length, "Scan of " & integer'image(data'length) & " bits", tb_rsp);
-    for i in 0 to data'length-1 loop
-      v_out(i) := tb_rsp.answers(C_FIRST+i);
-    end loop;
-    data_out := v_out;
-  end procedure tb_scan;
+    rbb_scan_dr(data_value  => data,
+                data_out    => data_out,
+                msg         => "DR scan",
+                clk         => clk,
+                rbb_if      => tb_req.rbb,
+                answers     => tb_rsp.answers,
+                scope       => C_TB_SCOPE,
+                config      => tb_config(tb_req),
+                jtag_config => C_JTAG_CONFIG);
+  end procedure tb_scan_dr;
 
   procedure tb_write_ir(
     constant opcode       : in    natural;
@@ -320,10 +305,15 @@ package body tb_bitbang_bfm_pkg is
     signal   clk          : in    std_logic
     ) is
     constant C_OPCODE     : std_logic_vector(C_IR_WIDTH-1 downto 0) := std_logic_vector(to_unsigned(opcode, C_IR_WIDTH));
-    variable v_out        : std_logic_vector(C_IR_WIDTH-1 downto 0);
   begin
-    tb_scan(true, C_OPCODE, v_out, tb_req, tb_rsp, clk);
-    check_value(v_out, std_logic_vector(to_unsigned(1, C_IR_WIDTH)), ERROR, "Capture-IR read by 'R' (IR scan " & msg & ")", C_TB_SCOPE);
+    rbb_write_ir(ir_value    => C_OPCODE,
+                 msg         => "IR scan " & msg,
+                 clk         => clk,
+                 rbb_if      => tb_req.rbb,
+                 answers     => tb_rsp.answers,
+                 scope       => C_TB_SCOPE,
+                 config      => tb_config(tb_req),
+                 jtag_config => C_JTAG_CONFIG);
     check_value(tb_rsp.ir, C_OPCODE, ERROR, "ir_o after the IR scan " & msg, C_TB_SCOPE);
   end procedure tb_write_ir;
 
@@ -335,10 +325,16 @@ package body tb_bitbang_bfm_pkg is
     signal   tb_rsp       : in    tb_rsp_t;
     signal   clk          : in    std_logic
     ) is
-    variable v_out        : std_logic_vector(data'length-1 downto 0);
   begin
-    tb_scan(false, data, v_out, tb_req, tb_rsp, clk);
-    check_value(v_out, data_exp, ERROR, "DR scan read by 'R' : " & msg, C_TB_SCOPE);
+    rbb_check_dr(data_value  => data,
+                 data_exp    => data_exp,
+                 msg         => "DR scan read by 'R' : " & msg,
+                 clk         => clk,
+                 rbb_if      => tb_req.rbb,
+                 answers     => tb_rsp.answers,
+                 scope       => C_TB_SCOPE,
+                 config      => tb_config(tb_req),
+                 jtag_config => C_JTAG_CONFIG);
   end procedure tb_check_dr;
 
 end package body tb_bitbang_bfm_pkg;
