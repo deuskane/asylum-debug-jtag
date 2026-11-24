@@ -31,7 +31,7 @@
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-22  1.0      mrosiere Created
--- 2026-11-24  1.2.0    mrosiere Command converted to a character when taken
+-- 2026-11-24  1.1      mrosiere Command converted to a character when taken
 --                               (no NUMERIC_STD metavalue note before reset)
 -------------------------------------------------------------------------------
 
