@@ -167,6 +167,20 @@ filesets:
       - ">=asylum:utils:pkg:1.10.0"
 
   #---------------------------------------
+  # Co-simulation of jtag_axis with OpenOCD : the kit of sim_openocd, the
+  # procedures of tools/openocd/jtag_axis.tcl (copied to openocd/)
+  #---------------------------------------
+  sim_openocd_axis:
+    files        :
+      - sim/openocd/tb_axis_openocd.vhd
+      - sim/openocd/axis.cfg           : {file_type : user, copyto : openocd/axis.cfg}
+      - tools/openocd/jtag_axis.tcl    : {file_type : user, copyto : openocd/jtag_axis.tcl}
+    file_type    : vhdlSource-2008
+    depend       :
+      - bitvis:verification:uvvm
+      - ">=asylum:verification:openocd:1.0.0"
+
+  #---------------------------------------
   syn:
   #---------------------------------------
     files        :
@@ -988,6 +1002,33 @@ targets:
       pre_run       : [cosim_start]
       post_run      : [cosim_check]
 
+  #---------------------------------------
+  # Co-simulation : OpenOCD 0.12 (remote_bitbang adapter, TCP) drives
+  # jtag_bitbang and jtag_axis (RX looped back to TX) with the procedures
+  # of tools/openocd/jtag_axis.tcl ; checks of sim/openocd/axis.cfg
+  #---------------------------------------
+  sim_openocd_axis:
+  #---------------------------------------
+    << : *default
+    description     : Co-simulation of jtag_axis with OpenOCD (remote_bitbang over TCP) - jtag_axis_config, jtag_axis_push, jtag_axis_pop through a loop RX to TX
+    filesets_append :
+      - sim_openocd_axis
+    toplevel        : tb_axis_openocd
+    default_tool    : ghdl
+    tools :
+      ghdl :
+        analyze_options :
+          - "$(GHDL_ANALYZE_OPTION)"
+          - "-Wall"
+          - "-frelaxed"
+        run_options     :
+          - "$(GHDL_RUN_OPTION)"
+          - "--ieee-asserts=disable"
+    hooks :
+      pre_build     : [cosim_build]
+      pre_run       : [cosim_start_axis]
+      post_run      : [cosim_check]
+
 #=========================================
 scripts:
 #=========================================
@@ -1014,6 +1055,9 @@ scripts:
 
   cosim_start :
     cmd : [bash, rbb/cosim.sh, start, openocd/jtag.cfg]
+
+  cosim_start_axis :
+    cmd : [bash, rbb/cosim.sh, start, openocd/axis.cfg]
 
   cosim_check :
     cmd : [bash, rbb/cosim.sh, check]
