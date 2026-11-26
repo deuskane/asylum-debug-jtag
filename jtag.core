@@ -9,8 +9,9 @@ CAPI=2:
 #-----------------------------------------------------------------------------
 # Description: IEEE 1149.1 JTAG Test Access Port (IDCODE, BYPASS, user
 #              instructions decoded outside), test data registers (parallel
-#              in, out, in/out), a generic pad multiplexer and a JTAG
-#              master driven by the OpenOCD remote_bitbang protocol
+#              in, out, in/out), a generic pad multiplexer, a JTAG
+#              master driven by the OpenOCD remote_bitbang protocol and an
+#              AXI-Stream to JTAG bridge (jtag_axis)
 #-----------------------------------------------------------------------------
 # Copyright (c) 2026
 #-----------------------------------------------------------------------------
@@ -28,7 +29,7 @@ CAPI=2:
 #-----------------------------------------------------------------------------
 
 name        : asylum:debug:jtag:1.2.0
-description : JTAG TAP, test data registers and pad multiplexer
+description : JTAG TAP, test data registers, pad multiplexer, remote_bitbang master, AXI-Stream bridge
 
 #=========================================
 filesets:
@@ -45,8 +46,12 @@ filesets:
       - hdl/jtag_tdr_inout.vhd
       - hdl/jtag_pad_mux.vhd
       - hdl/jtag_bitbang.vhd
+      - hdl/jtag_axis.vhd
     file_type    : vhdlSource-2008
     logical_name : asylum
+    depend       :
+      # fifo_async (jtag_axis)
+      - ">=asylum:component:fifo:1.3.0"
 
   #---------------------------------------
   # Testbench of jtag_tap and of the TDRs : JTAG BFM of
@@ -220,6 +225,25 @@ targets:
     toplevel        : asylum.jtag_bitbang
 
   #---------------------------------------
+  # jtag_axis alone : default generics, and TX only with 32-bit words
+  #---------------------------------------
+  lint_ghdl_synth_axis_default : &lint_ghdl_synth_axis
+  #---------------------------------------
+    << : *lint_ghdl_synth
+    description     : Synthesis check of jtag_axis, default generics (8-bit words, TX and RX, FIFOs of 4 words)
+    toplevel        : asylum.jtag_axis
+
+  #---------------------------------------
+  lint_ghdl_synth_axis_tx_32b :
+  #---------------------------------------
+    << : *lint_ghdl_synth_axis
+    description     : Synthesis check of jtag_axis, TX only, 32-bit words, TX FIFO of 16 words
+    parameters      :
+      - DATA_WIDTH=32
+      - RX_ENABLE=false
+      - DEPTH_TX=16
+
+  #---------------------------------------
   # Synthesis : size of jtag_wrapper with the generics of the target,
   # Xilinx Artix-7 (LUT, FF, BRAM, DSP) and sky130 (area), by Yosys and
   # its GHDL plugin. Same configurations as lint_ghdl_synth_*.
@@ -256,6 +280,23 @@ targets:
     << : *syn
     description     : Synthesis (Artix-7, sky130) of jtag_bitbang (remote_bitbang JTAG master)
     toplevel        : asylum.jtag_bitbang
+
+  #---------------------------------------
+  syn_axis_default : &syn_axis
+  #---------------------------------------
+    << : *syn
+    description     : Synthesis (Artix-7, sky130) of jtag_axis, default generics (8-bit words, TX and RX, FIFOs of 4 words)
+    toplevel        : asylum.jtag_axis
+
+  #---------------------------------------
+  syn_axis_tx_32b :
+  #---------------------------------------
+    << : *syn_axis
+    description     : Synthesis (Artix-7, sky130) of jtag_axis, TX only, 32-bit words, TX FIFO of 16 words
+    parameters      :
+      - DATA_WIDTH=32
+      - RX_ENABLE=false
+      - DEPTH_TX=16
 
   #---------------------------------------
   # tb_jtag : compiled once per configuration, scenarios chosen at run
@@ -732,6 +773,39 @@ parameters :
     description : Width of the jtag_tdr_inout register
     datatype    : int
     default     : 8
+    paramtype   : generic
+
+  #---------------------------------------
+  # Generics of jtag_axis (lint_ghdl_synth_axis_*, syn_axis_*)
+  #---------------------------------------
+  DATA_WIDTH :
+    description : Width of the words of jtag_axis
+    datatype    : int
+    default     : 8
+    paramtype   : generic
+
+  TX_ENABLE :
+    description : true, jtag_axis has the TX direction (system to JTAG)
+    datatype    : bool
+    default     : true
+    paramtype   : generic
+
+  RX_ENABLE :
+    description : true, jtag_axis has the RX direction (JTAG to system)
+    datatype    : bool
+    default     : true
+    paramtype   : generic
+
+  DEPTH_TX :
+    description : Number of words of the TX FIFO of jtag_axis (power of 2)
+    datatype    : int
+    default     : 4
+    paramtype   : generic
+
+  DEPTH_RX :
+    description : Number of words of the RX FIFO of jtag_axis (power of 2)
+    datatype    : int
+    default     : 4
     paramtype   : generic
 
   #---------------------------------------
