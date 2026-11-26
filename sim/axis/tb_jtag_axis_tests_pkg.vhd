@@ -39,7 +39,7 @@ use     work.tb_jtag_axis_bfm_pkg.all;
 package tb_jtag_axis_tests_pkg is
 
   -- Names of the scenarios (valid items of TESTS_LIST)
-  constant C_TESTS : string := "idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset";
+  constant C_TESTS : string := "idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race";
 
   -- Run the scenario name
   procedure run_test(
@@ -94,6 +94,9 @@ package body tb_jtag_axis_tests_pkg is
     elsif string_eq(name, "reset")
     then
       work.tb_jtag_axis_reset_pkg.run(jtag_if, tb_req, tb_rsp, arst_b, cfg);
+    elsif string_eq(name, "race")
+    then
+      work.tb_jtag_axis_race_pkg.run(jtag_if, tb_req, tb_rsp, arst_b, cfg);
     else
       alert(TB_ERROR, "Unknown test " & name, C_TB_SCOPE);
     end if;

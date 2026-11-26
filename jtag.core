@@ -158,6 +158,7 @@ filesets:
       - sim/axis/tb_jtag_axis_backpressure_pkg.vhd
       - sim/axis/tb_jtag_axis_stream_pkg.vhd
       - sim/axis/tb_jtag_axis_reset_pkg.vhd
+      - sim/axis/tb_jtag_axis_race_pkg.vhd
       - sim/axis/tb_jtag_axis_tests_pkg.vhd
       - sim/axis/tb_jtag_axis.vhd
     file_type    : vhdlSource-2008
@@ -749,12 +750,28 @@ targets:
       - TCK_SYNC=false
 
   #---------------------------------------
+  sim_axis_race:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - a word written (a place freed) by the system after Capture-DR is not taken by Update-DR"
+    parameters      :
+      - TESTS_LIST=race
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
   sim_axis_tx_only:
   #---------------------------------------
     << : *sim_axis
-    description     : Simulation of jtag_axis, TX only, 12-bit words, TX FIFO of 8 words, scenarios idcode, bypass, config, pop, tx_full, stream, reset
+    description     : Simulation of jtag_axis, TX only, 12-bit words, TX FIFO of 8 words, scenarios idcode, bypass, config, pop, tx_full, stream, reset, race
     parameters      :
-      - TESTS_LIST=idcode,bypass,config,pop,tx_full,stream,reset
+      - TESTS_LIST=idcode,bypass,config,pop,tx_full,stream,reset,race
       - DATA_WIDTH=12
       - TX_ENABLE=true
       - RX_ENABLE=false
@@ -768,9 +785,9 @@ targets:
   sim_axis_rx_only:
   #---------------------------------------
     << : *sim_axis
-    description     : Simulation of jtag_axis, RX only, 5-bit words, RX FIFO of 2 words, scenarios idcode, bypass, config, push, rx_full, backpressure, stream, reset
+    description     : Simulation of jtag_axis, RX only, 5-bit words, RX FIFO of 2 words, scenarios idcode, bypass, config, push, rx_full, backpressure, stream, reset, race
     parameters      :
-      - TESTS_LIST=idcode,bypass,config,push,rx_full,backpressure,stream,reset
+      - TESTS_LIST=idcode,bypass,config,push,rx_full,backpressure,stream,reset,race
       - DATA_WIDTH=5
       - TX_ENABLE=false
       - RX_ENABLE=true
@@ -784,9 +801,9 @@ targets:
   sim_axis_fast_tck:
   #---------------------------------------
     << : *sim_axis
-    description     : Simulation of jtag_axis, 16-bit words, FIFOs of 8 (TX) and 2 (RX) words, TCK of 20 ns faster than clk of 70 ns, scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset
+    description     : Simulation of jtag_axis, 16-bit words, FIFOs of 8 (TX) and 2 (RX) words, TCK of 20 ns faster than clk of 70 ns, scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race
     parameters      :
-      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset
+      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race
       - DATA_WIDTH=16
       - TX_ENABLE=true
       - RX_ENABLE=true
@@ -800,9 +817,9 @@ targets:
   sim_axis_sync_tck:
   #---------------------------------------
     << : *sim_axis
-    description     : Simulation of jtag_axis, reference generics, TCK resynchronized on clk (2 flip-flops, as in PicoSoC), scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset
+    description     : Simulation of jtag_axis, reference generics, TCK resynchronized on clk (2 flip-flops, as in PicoSoC), scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race
     parameters      :
-      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset
+      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race
       - DATA_WIDTH=8
       - TX_ENABLE=true
       - RX_ENABLE=true
