@@ -11,7 +11,7 @@
 -- Standard   : VHDL'08
 -------------------------------------------------------------------------------
 -- Description:
---  Scenario config : CONFIG after the reset (sizes, enables, a direction
+--  Scenario config : CONFIG after the reset (DATA_WIDTH, enables, a direction
 --  enabled is empty and not full, a disabled one empty and full), read
 --  twice
 -------------------------------------------------------------------------------

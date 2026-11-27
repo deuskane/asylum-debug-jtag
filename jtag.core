@@ -197,7 +197,8 @@ filesets:
   #---------------------------------------
     # yosys_synth.sh / yosys_synth.mk / yosys_synth.py (pre_run hook of syn_*)
     depend       :
-      - asylum:utils:yosys_synth
+      # 1.1.1 : memories written on two clocks (ram_2rw_2c of fifo_async)
+      - ">=asylum:utils:yosys_synth:1.1.1"
 
 #=========================================
 targets:
@@ -1027,7 +1028,7 @@ targets:
   sim_openocd_axis:
   #---------------------------------------
     << : *default
-    description     : Co-simulation of jtag_axis with OpenOCD (remote_bitbang over TCP) - jtag_axis_config, jtag_axis_push, jtag_axis_pop through a loop RX to TX
+    description     : Co-simulation of jtag_axis with OpenOCD (remote_bitbang over TCP) - jtag_axis_config, jtag_axis_push, jtag_axis_pop through a loop RX to TX, bursts
     filesets_append :
       - sim_openocd_axis
     toplevel        : tb_axis_openocd

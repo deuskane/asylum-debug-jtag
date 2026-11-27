@@ -20,9 +20,9 @@
 --  * RX (RX_ENABLE) : JTAG -> system. The debugger writes the words with
 --    the instruction RX, the system reads m_axis (clk_i).
 -- Instructions (jtag_pkg) :
---  * JTAG_AXIS_IR_CONFIG : 48-bit read only register, sizes and flags
---    (TX_ENABLE, TX empty, TX full, RX_ENABLE, RX empty, RX full,
---    DATA_WIDTH, DEPTH_TX, DEPTH_RX)
+--  * JTAG_AXIS_IR_CONFIG : 16-bit read only register : TX_ENABLE, TX empty,
+--    TX full, RX_ENABLE, RX empty, RX full, DATA_WIDTH (constants but the 4
+--    flags)
 --  * JTAG_AXIS_IR_TX : DATA_WIDTH+1 bits. Capture-DR loads {word, valid}
 --    (bit 0 : valid, the TX FIFO had a word) ; Update-DR removes the
 --    captured word from the TX FIFO when it was valid.
@@ -44,6 +44,7 @@
 -- Revisions  :
 -- Date        Version  Author   Description
 -- 2026-11-26  1.0      mrosiere Created
+-- 2026-11-27  1.1      mrosiere CONFIG of 16 bits (DEPTH_TX, DEPTH_RX removed)
 -------------------------------------------------------------------------------
 
 library ieee;
@@ -128,8 +129,8 @@ architecture rtl of jtag_axis is
 
 begin  -- architecture rtl
 
-  assert DATA_WIDTH < 2**8 and DEPTH_TX < 2**16 and DEPTH_RX < 2**16
-    report "jtag_axis : DATA_WIDTH (8 bits) or DEPTH_TX / DEPTH_RX (16 bits) too large for CONFIG" severity failure;
+  assert DATA_WIDTH < 2**8
+    report "jtag_axis : DATA_WIDTH too large for CONFIG (8 bits)" severity failure;
 
   -----------------------------------------------------------------------------
   -- TAP
@@ -169,11 +170,9 @@ begin  -- architecture rtl
                  rx_tdo;
 
   -----------------------------------------------------------------------------
-  -- CONFIG : flags of the TCK side of the FIFOs, sizes
+  -- CONFIG : flags of the TCK side of the FIFOs, enables, DATA_WIDTH
   -----------------------------------------------------------------------------
-  config <= std_logic_vector(to_unsigned(DEPTH_RX  , 16)) &
-            std_logic_vector(to_unsigned(DEPTH_TX  , 16)) &
-            std_logic_vector(to_unsigned(DATA_WIDTH,  8)) &
+  config <= std_logic_vector(to_unsigned(DATA_WIDTH,  8)) &
             '0' & rx_full & rx_empty & RX_EN &
             '0' & tx_full & tx_empty & TX_EN;
 

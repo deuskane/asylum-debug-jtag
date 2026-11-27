@@ -122,8 +122,8 @@ package tb_jtag_axis_bfm_pkg is
     constant cfg          : in    tb_cfg_t
     );
 
-  -- CONFIG : IR scan, then check of the 48 bits (sizes, enables and the 4
-  -- flags given)
+  -- CONFIG : IR scan, then check of the 16 bits (DATA_WIDTH, enables and the
+  -- 4 flags given)
   procedure tb_check_config(
     constant tx_empty     : in    std_logic;
     constant tx_full      : in    std_logic;
@@ -299,9 +299,7 @@ package body tb_jtag_axis_bfm_pkg is
     ) is
     variable v_exp        : std_logic_vector(JTAG_AXIS_CONFIG_WIDTH-1 downto 0);
   begin
-    v_exp := std_logic_vector(to_unsigned(cfg.depth_rx  , 16)) &
-             std_logic_vector(to_unsigned(cfg.depth_tx  , 16)) &
-             std_logic_vector(to_unsigned(cfg.data_width,  8)) &
+    v_exp := std_logic_vector(to_unsigned(cfg.data_width,  8)) &
              '0' & rx_full & rx_empty & to_sl(cfg.rx_enable) &
              '0' & tx_full & tx_empty & to_sl(cfg.tx_enable);
     tb_write_ir(JTAG_AXIS_IR_CONFIG, "CONFIG", jtag_if, cfg);

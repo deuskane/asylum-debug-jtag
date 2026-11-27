@@ -47,7 +47,7 @@ sim_jtag_tdr_reset           : Simulation of jtag_tap and the TDRs - reset value
 sim_jtag_unclaimed           : Simulation of jtag_tap and the TDRs - unclaimed opcodes (all zeros included) select BYPASS
 sim_jtag_user                : Simulation of jtag_tap and the TDRs - user instructions, TDO from user_tdo_i (TDR of the opcode)
 sim_openocd                  : Co-simulation of jtag_bitbang with OpenOCD (remote_bitbang over TCP) - IDCODE, DR scans, TRST, SRST
-sim_openocd_axis             : Co-simulation of jtag_axis with OpenOCD (remote_bitbang over TCP) - jtag_axis_config, jtag_axis_push, jtag_axis_pop through a loop RX to TX
+sim_openocd_axis             : Co-simulation of jtag_axis with OpenOCD (remote_bitbang over TCP) - jtag_axis_config, jtag_axis_push, jtag_axis_pop through a loop RX to TX, bursts
 sim_pad_mux                  : Simulation of jtag_pad_mux (3 functions on 4 pads) - build only (scenarios of TESTS_LIST)
 sim_pad_mux_5x2              : Simulation of jtag_pad_mux, 5 functions on 2 pads, every scenario
 sim_pad_mux_default          : Simulation of jtag_pad_mux - unselected functions see PAD_IN_DEFAULT

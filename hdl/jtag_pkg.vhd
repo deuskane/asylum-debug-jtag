@@ -54,7 +54,7 @@ package jtag_pkg is
   constant JTAG_AXIS_IR_CONFIG    : std_logic_vector(JTAG_AXIS_IR_WIDTH-1 downto 0) := "00010";
   constant JTAG_AXIS_IR_TX        : std_logic_vector(JTAG_AXIS_IR_WIDTH-1 downto 0) := "00011";
   constant JTAG_AXIS_IR_RX        : std_logic_vector(JTAG_AXIS_IR_WIDTH-1 downto 0) := "00100";
-  constant JTAG_AXIS_CONFIG_WIDTH : positive := 48;
+  constant JTAG_AXIS_CONFIG_WIDTH : positive := 16;
 
 -- [COMPONENT_INSERT][BEGIN]
 component jtag_axis is

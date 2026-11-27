@@ -10,7 +10,7 @@
 #              with -irlen 5) :
 #                jtag_axis_config <tap>       : CONFIG register, returned as
 #                    a dict (tx_enable, tx_empty, tx_full, rx_enable,
-#                    rx_empty, rx_full, data_width, depth_tx, depth_rx)
+#                    rx_empty, rx_full, data_width)
 #                jtag_axis_pop <tap> [n]      : reads up to n words (1 by
 #                    default) of the TX FIFO (system to JTAG), stops on an
 #                    empty FIFO, returns the list of the words read
@@ -25,12 +25,13 @@
 # Revisions  :
 # Date        Version  Author   Description
 # 2026-11-26  1.0      mrosiere Created
+# 2026-11-27  1.1      mrosiere CONFIG of 16 bits (no FIFO depth)
 #-----------------------------------------------------------------------------
 
-# CONFIG register (48 bits) of the jtag_axis TAP <tap>, as a dict
+# CONFIG register (16 bits) of the jtag_axis TAP <tap>, as a dict
 proc jtag_axis_config {tap} {
     irscan $tap 2
-    set c [expr 0x[drscan $tap 48 0]]
+    set c [expr 0x[drscan $tap 16 0]]
     return [dict create \
                 tx_enable  [expr {$c         & 1}] \
                 tx_empty   [expr {($c >>  1) & 1}] \
@@ -38,9 +39,7 @@ proc jtag_axis_config {tap} {
                 rx_enable  [expr {($c >>  4) & 1}] \
                 rx_empty   [expr {($c >>  5) & 1}] \
                 rx_full    [expr {($c >>  6) & 1}] \
-                data_width [expr {($c >>  8) & 0xff}] \
-                depth_tx   [expr {($c >> 16) & 0xffff}] \
-                depth_rx   [expr {($c >> 32) & 0xffff}]]
+                data_width [expr {($c >>  8) & 0xff}]]
 }
 
 # Up to n words of the TX FIFO : one TX scan per word ({word, valid}, the
