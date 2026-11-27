@@ -18,14 +18,17 @@
 #                    FIFO (JTAG to system), stops on the first word refused
 #                    (FIFO full), returns the number of words written
 #              Opcodes (IR of 5 bits) : CONFIG 2, TX 3, RX 4 (jtag_pkg).
-#              Words of up to 63 bits (Jim Tcl integers).
+#              Words of up to 62 bits : a scan of DATA_WIDTH + 1 bits read as
+#              a positive Jim Tcl integer (signed 64 bits) ; the procedures
+#              stop with an error on a wider CONFIG.
 #-----------------------------------------------------------------------------
 # Copyright (c) 2026
 #-----------------------------------------------------------------------------
 # Revisions  :
 # Date        Version  Author   Description
 # 2026-11-26  1.0      mrosiere Created
-# 2026-11-27  1.1      mrosiere CONFIG of 16 bits (no FIFO depth)
+# 2026-11-27  1.1      mrosiere CONFIG of 16 bits (no FIFO depth), words of up to
+#                               62 bits checked
 #-----------------------------------------------------------------------------
 
 # CONFIG register (16 bits) of the jtag_axis TAP <tap>, as a dict
@@ -42,10 +45,19 @@ proc jtag_axis_config {tap} {
                 data_width [expr {($c >>  8) & 0xff}]]
 }
 
+# DATA_WIDTH of CONFIG, at most 62 (scan of 63 bits, a positive integer)
+proc jtag_axis_width {tap} {
+    set width [dict get [jtag_axis_config $tap] data_width]
+    if {$width > 62} {
+        error "jtag_axis : DATA_WIDTH $width, the procedures handle up to 62 bits"
+    }
+    return $width
+}
+
 # Up to n words of the TX FIFO : one TX scan per word ({word, valid}, the
 # word is removed in Update-DR when valid), stops on an empty FIFO
 proc jtag_axis_pop {tap {n 1}} {
-    set width [dict get [jtag_axis_config $tap] data_width]
+    set width [jtag_axis_width $tap]
     irscan $tap 3
     set words {}
     for {set i 0} {$i < $n} {incr i} {
@@ -62,7 +74,7 @@ proc jtag_axis_pop {tap {n 1}} {
 # width downto 1, bit 0 captured : accepted), stops on the first word
 # refused (RX FIFO full), returns the number of words written
 proc jtag_axis_push {tap words} {
-    set width [dict get [jtag_axis_config $tap] data_width]
+    set width [jtag_axis_width $tap]
     irscan $tap 4
     set n 0
     foreach w $words {
