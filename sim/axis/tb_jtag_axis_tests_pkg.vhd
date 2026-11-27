@@ -39,7 +39,7 @@ use     work.tb_jtag_axis_bfm_pkg.all;
 package tb_jtag_axis_tests_pkg is
 
   -- Names of the scenarios (valid items of TESTS_LIST)
-  constant C_TESTS : string := "idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race,tx_burst,rx_burst,duplex_burst";
+  constant C_TESTS : string := "idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race,tx_burst,rx_burst,duplex_burst,visibility,trst,trst_scan,reset_scan";
 
   -- Run the scenario name
   procedure run_test(
@@ -106,6 +106,18 @@ package body tb_jtag_axis_tests_pkg is
     elsif string_eq(name, "duplex_burst")
     then
       work.tb_jtag_axis_duplex_burst_pkg.run(jtag_if, tb_req, tb_rsp, arst_b, cfg);
+    elsif string_eq(name, "visibility")
+    then
+      work.tb_jtag_axis_visibility_pkg.run(jtag_if, tb_req, tb_rsp, arst_b, cfg);
+    elsif string_eq(name, "trst")
+    then
+      work.tb_jtag_axis_trst_pkg.run(jtag_if, tb_req, tb_rsp, arst_b, cfg);
+    elsif string_eq(name, "trst_scan")
+    then
+      work.tb_jtag_axis_trst_scan_pkg.run(jtag_if, tb_req, tb_rsp, arst_b, cfg);
+    elsif string_eq(name, "reset_scan")
+    then
+      work.tb_jtag_axis_reset_scan_pkg.run(jtag_if, tb_req, tb_rsp, arst_b, cfg);
     else
       alert(TB_ERROR, "Unknown test " & name, C_TB_SCOPE);
     end if;

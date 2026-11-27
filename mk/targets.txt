@@ -10,20 +10,24 @@ sim_axis_backpressure        : Simulation of jtag_axis - m_axis_tready_i low : f
 sim_axis_bypass              : Simulation of jtag_axis - unclaimed opcodes and the opcode of a disabled direction select BYPASS
 sim_axis_config              : Simulation of jtag_axis - CONFIG after the reset (sizes, enables, flags)
 sim_axis_duplex_burst        : Simulation of jtag_axis - both directions at the same time, back-to-back scans, continuous AXI-Stream sides
-sim_axis_fast_tck            : Simulation of jtag_axis, 16-bit words, FIFOs of 8 (TX) and 2 (RX) words, TCK of 20 ns faster than clk of 70 ns, scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race, tx_burst, rx_burst, duplex_burst
+sim_axis_fast_tck            : Simulation of jtag_axis, 16-bit words, FIFOs of 8 (TX) and 2 (RX) words, TCK of 20 ns faster than clk of 70 ns, scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race, tx_burst, rx_burst, duplex_burst, visibility, trst, trst_scan, reset_scan
 sim_axis_idcode              : Simulation of jtag_axis - IDCODE after the reset and by an IR scan
 sim_axis_pop                 : Simulation of jtag_axis - words written on s_axis read in order by TX scans, then empty
 sim_axis_push                : Simulation of jtag_axis - words written by RX scans read in order on m_axis
 sim_axis_race                : Simulation of jtag_axis - a word written (a place freed) by the system after Capture-DR is not taken by Update-DR
 sim_axis_reset               : Simulation of jtag_axis - reset pulse empties both FIFOs, words written after it go through
+sim_axis_reset_scan          : Simulation of jtag_axis - reset pulse in the middle of a scan : FIFOs emptied, no word delivered, words after it go through
 sim_axis_rx_burst            : Simulation of jtag_axis - RX FIFO filled by back-to-back scans then read, then words written while m_axis_tready_i is held high
 sim_axis_rx_full             : Simulation of jtag_axis - RX FIFO full : word refused (accepted bit 0, CONFIG), written again after the reads
-sim_axis_rx_only             : Simulation of jtag_axis, RX only, 5-bit words, RX FIFO of 2 words, scenarios idcode, bypass, config, push, rx_full, backpressure, stream, reset, race, rx_burst, duplex_burst
+sim_axis_rx_only             : Simulation of jtag_axis, RX only, 5-bit words, RX FIFO of 2 words, scenarios idcode, bypass, config, push, rx_full, backpressure, stream, reset, race, rx_burst, duplex_burst, visibility, trst, trst_scan, reset_scan
 sim_axis_stream              : Simulation of jtag_axis - both directions at the same time, random gaps and ready, order kept
-sim_axis_sync_tck            : Simulation of jtag_axis, reference generics, TCK resynchronized on clk (2 flip-flops, as in PicoSoC), scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race, tx_burst, rx_burst, duplex_burst
+sim_axis_sync_tck            : Simulation of jtag_axis, reference generics, TCK resynchronized on clk (2 flip-flops, as in PicoSoC), scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race, tx_burst, rx_burst, duplex_burst, visibility, trst, trst_scan, reset_scan
+sim_axis_trst                : Simulation of jtag_axis - TRST alone : TAP reset (IDCODE), the words of both FIFOs kept
+sim_axis_trst_scan           : Simulation of jtag_axis - TRST in the middle of a scan : no Update-DR, the TX word not removed, the RX word not written
 sim_axis_tx_burst            : Simulation of jtag_axis - TX FIFO filled then drained by back-to-back scans, then words read while s_axis is continuous
 sim_axis_tx_full             : Simulation of jtag_axis - TX FIFO full (s_axis_tready_o low, CONFIG), each TX scan frees a place
-sim_axis_tx_only             : Simulation of jtag_axis, TX only, 12-bit words, TX FIFO of 8 words, scenarios idcode, bypass, config, pop, tx_full, stream, reset, race, tx_burst, duplex_burst
+sim_axis_tx_only             : Simulation of jtag_axis, TX only, 12-bit words, TX FIFO of 8 words, scenarios idcode, bypass, config, pop, tx_full, stream, reset, race, tx_burst, duplex_burst, visibility, trst, trst_scan, reset_scan
+sim_axis_visibility          : Simulation of jtag_axis - a system transfer made with TCK stopped is seen by the very next scan (TX word valid, RX place accepted)
 sim_bitbang                  : Simulation of jtag_bitbang with jtag_tap and a TDR - build only (scenarios of TESTS_LIST)
 sim_bitbang_backpressure     : Simulation of jtag_bitbang - m_axis back-pressure, s_axis held while an answer is pending
 sim_bitbang_blink            : Simulation of jtag_bitbang - blink commands 'B' and 'b'
