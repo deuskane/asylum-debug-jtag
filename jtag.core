@@ -159,6 +159,9 @@ filesets:
       - sim/axis/tb_jtag_axis_stream_pkg.vhd
       - sim/axis/tb_jtag_axis_reset_pkg.vhd
       - sim/axis/tb_jtag_axis_race_pkg.vhd
+      - sim/axis/tb_jtag_axis_tx_burst_pkg.vhd
+      - sim/axis/tb_jtag_axis_rx_burst_pkg.vhd
+      - sim/axis/tb_jtag_axis_duplex_burst_pkg.vhd
       - sim/axis/tb_jtag_axis_tests_pkg.vhd
       - sim/axis/tb_jtag_axis.vhd
     file_type    : vhdlSource-2008
@@ -767,12 +770,60 @@ targets:
       - TCK_SYNC=false
 
   #---------------------------------------
+  sim_axis_tx_burst:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - TX FIFO filled then drained by back-to-back scans, then words read while s_axis is continuous"
+    parameters      :
+      - TESTS_LIST=tx_burst
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_rx_burst:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - RX FIFO filled by back-to-back scans then read, then words written while m_axis_tready_i is held high"
+    parameters      :
+      - TESTS_LIST=rx_burst
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_duplex_burst:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - both directions at the same time, back-to-back scans, continuous AXI-Stream sides"
+    parameters      :
+      - TESTS_LIST=duplex_burst
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
   sim_axis_tx_only:
   #---------------------------------------
     << : *sim_axis
-    description     : Simulation of jtag_axis, TX only, 12-bit words, TX FIFO of 8 words, scenarios idcode, bypass, config, pop, tx_full, stream, reset, race
+    description     : Simulation of jtag_axis, TX only, 12-bit words, TX FIFO of 8 words, scenarios idcode, bypass, config, pop, tx_full, stream, reset, race, tx_burst, duplex_burst
     parameters      :
-      - TESTS_LIST=idcode,bypass,config,pop,tx_full,stream,reset,race
+      - TESTS_LIST=idcode,bypass,config,pop,tx_full,stream,reset,race,tx_burst,duplex_burst
       - DATA_WIDTH=12
       - TX_ENABLE=true
       - RX_ENABLE=false
@@ -786,9 +837,9 @@ targets:
   sim_axis_rx_only:
   #---------------------------------------
     << : *sim_axis
-    description     : Simulation of jtag_axis, RX only, 5-bit words, RX FIFO of 2 words, scenarios idcode, bypass, config, push, rx_full, backpressure, stream, reset, race
+    description     : Simulation of jtag_axis, RX only, 5-bit words, RX FIFO of 2 words, scenarios idcode, bypass, config, push, rx_full, backpressure, stream, reset, race, rx_burst, duplex_burst
     parameters      :
-      - TESTS_LIST=idcode,bypass,config,push,rx_full,backpressure,stream,reset,race
+      - TESTS_LIST=idcode,bypass,config,push,rx_full,backpressure,stream,reset,race,rx_burst,duplex_burst
       - DATA_WIDTH=5
       - TX_ENABLE=false
       - RX_ENABLE=true
@@ -802,9 +853,9 @@ targets:
   sim_axis_fast_tck:
   #---------------------------------------
     << : *sim_axis
-    description     : Simulation of jtag_axis, 16-bit words, FIFOs of 8 (TX) and 2 (RX) words, TCK of 20 ns faster than clk of 70 ns, scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race
+    description     : Simulation of jtag_axis, 16-bit words, FIFOs of 8 (TX) and 2 (RX) words, TCK of 20 ns faster than clk of 70 ns, scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race, tx_burst, rx_burst, duplex_burst
     parameters      :
-      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race
+      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race,tx_burst,rx_burst,duplex_burst
       - DATA_WIDTH=16
       - TX_ENABLE=true
       - RX_ENABLE=true
@@ -818,9 +869,9 @@ targets:
   sim_axis_sync_tck:
   #---------------------------------------
     << : *sim_axis
-    description     : Simulation of jtag_axis, reference generics, TCK resynchronized on clk (2 flip-flops, as in PicoSoC), scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race
+    description     : Simulation of jtag_axis, reference generics, TCK resynchronized on clk (2 flip-flops, as in PicoSoC), scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race, tx_burst, rx_burst, duplex_burst
     parameters      :
-      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race
+      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race,tx_burst,rx_burst,duplex_burst
       - DATA_WIDTH=8
       - TX_ENABLE=true
       - RX_ENABLE=true
