@@ -200,8 +200,7 @@ filesets:
   #---------------------------------------
     # yosys_synth.sh / yosys_synth.mk / yosys_synth.py (pre_run hook of syn_*)
     depend       :
-      # 1.1.1 : memories written on two clocks (ram_2rw_2c of fifo_async)
-      - ">=asylum:utils:yosys_synth:1.1.1"
+      - asylum:utils:yosys_synth
 
 #=========================================
 targets:
