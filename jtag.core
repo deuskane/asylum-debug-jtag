@@ -26,9 +26,13 @@ CAPI=2:
 #                               asylum:verification:uvvm 1.3.0, sim_openocd on
 #                               the co-simulation kit asylum:verification:openocd,
 #                               jtag_bitbang without NUMERIC_STD note at 0 ms
+# 2026-11-27  1.3.0    mrosiere jtag_axis : AXI-Stream bridge with its own TAP
+#                               (CONFIG, TX, RX, fifo_async per direction),
+#                               tb_jtag_axis, sim_openocd_axis, OpenOCD
+#                               procedures tools/openocd/jtag_axis.tcl
 #-----------------------------------------------------------------------------
 
-name        : asylum:debug:jtag:1.2.0
+name        : asylum:debug:jtag:1.3.0
 description : JTAG TAP, test data registers, pad multiplexer, remote_bitbang master, AXI-Stream bridge
 
 #=========================================
