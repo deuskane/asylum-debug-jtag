@@ -9,8 +9,9 @@ CAPI=2:
 #-----------------------------------------------------------------------------
 # Description: IEEE 1149.1 JTAG Test Access Port (IDCODE, BYPASS, user
 #              instructions decoded outside), test data registers (parallel
-#              in, out, in/out), a generic pad multiplexer and a JTAG
-#              master driven by the OpenOCD remote_bitbang protocol
+#              in, out, in/out), a generic pad multiplexer, a JTAG
+#              master driven by the OpenOCD remote_bitbang protocol and an
+#              AXI-Stream to JTAG bridge (jtag_axis)
 #-----------------------------------------------------------------------------
 # Copyright (c) 2026
 #-----------------------------------------------------------------------------
@@ -25,10 +26,14 @@ CAPI=2:
 #                               asylum:verification:uvvm 1.3.0, sim_openocd on
 #                               the co-simulation kit asylum:verification:openocd,
 #                               jtag_bitbang without NUMERIC_STD note at 0 ms
+# 2026-11-27  1.3.0    mrosiere jtag_axis : AXI-Stream bridge with its own TAP
+#                               (CONFIG, TX, RX, fifo_async per direction),
+#                               tb_jtag_axis, sim_openocd_axis, OpenOCD
+#                               procedures tools/openocd/jtag_axis.tcl
 #-----------------------------------------------------------------------------
 
-name        : asylum:debug:jtag:1.2.0
-description : JTAG TAP, test data registers and pad multiplexer
+name        : asylum:debug:jtag:1.3.0
+description : JTAG TAP, test data registers, pad multiplexer, remote_bitbang master, AXI-Stream bridge
 
 #=========================================
 filesets:
@@ -45,8 +50,12 @@ filesets:
       - hdl/jtag_tdr_inout.vhd
       - hdl/jtag_pad_mux.vhd
       - hdl/jtag_bitbang.vhd
+      - hdl/jtag_axis.vhd
     file_type    : vhdlSource-2008
     logical_name : asylum
+    depend       :
+      # fifo_async (jtag_axis)
+      - ">=asylum:component:fifo:1.3.0"
 
   #---------------------------------------
   # Testbench of jtag_tap and of the TDRs : JTAG BFM of
@@ -137,6 +146,53 @@ filesets:
       - ">=asylum:verification:openocd:1.0.0"
 
   #---------------------------------------
+  # Testbench of jtag_axis : JTAG BFM of asylum_uvvm, model of the system
+  # on clk, one package per scenario
+  #---------------------------------------
+  sim_axis:
+    files        :
+      - sim/axis/tb_jtag_axis_bfm_pkg.vhd
+      - sim/axis/tb_jtag_axis_idcode_pkg.vhd
+      - sim/axis/tb_jtag_axis_bypass_pkg.vhd
+      - sim/axis/tb_jtag_axis_config_pkg.vhd
+      - sim/axis/tb_jtag_axis_pop_pkg.vhd
+      - sim/axis/tb_jtag_axis_push_pkg.vhd
+      - sim/axis/tb_jtag_axis_tx_full_pkg.vhd
+      - sim/axis/tb_jtag_axis_rx_full_pkg.vhd
+      - sim/axis/tb_jtag_axis_backpressure_pkg.vhd
+      - sim/axis/tb_jtag_axis_stream_pkg.vhd
+      - sim/axis/tb_jtag_axis_reset_pkg.vhd
+      - sim/axis/tb_jtag_axis_race_pkg.vhd
+      - sim/axis/tb_jtag_axis_tx_burst_pkg.vhd
+      - sim/axis/tb_jtag_axis_rx_burst_pkg.vhd
+      - sim/axis/tb_jtag_axis_duplex_burst_pkg.vhd
+      - sim/axis/tb_jtag_axis_visibility_pkg.vhd
+      - sim/axis/tb_jtag_axis_trst_pkg.vhd
+      - sim/axis/tb_jtag_axis_trst_scan_pkg.vhd
+      - sim/axis/tb_jtag_axis_reset_scan_pkg.vhd
+      - sim/axis/tb_jtag_axis_tests_pkg.vhd
+      - sim/axis/tb_jtag_axis.vhd
+    file_type    : vhdlSource-2008
+    depend       :
+      - asylum:verification:uvvm
+      # string_pkg list_length / list_item / list_contains (TESTS_LIST)
+      - ">=asylum:utils:pkg:1.10.0"
+
+  #---------------------------------------
+  # Co-simulation of jtag_axis with OpenOCD : the kit of sim_openocd, the
+  # procedures of tools/openocd/jtag_axis.tcl (copied to openocd/)
+  #---------------------------------------
+  sim_openocd_axis:
+    files        :
+      - sim/openocd/tb_axis_openocd.vhd
+      - sim/openocd/axis.cfg           : {file_type : user, copyto : openocd/axis.cfg}
+      - tools/openocd/jtag_axis.tcl    : {file_type : user, copyto : openocd/jtag_axis.tcl}
+    file_type    : vhdlSource-2008
+    depend       :
+      - bitvis:verification:uvvm
+      - ">=asylum:verification:openocd:1.0.0"
+
+  #---------------------------------------
   syn:
   #---------------------------------------
     files        :
@@ -220,6 +276,25 @@ targets:
     toplevel        : asylum.jtag_bitbang
 
   #---------------------------------------
+  # jtag_axis alone : default generics, and TX only with 32-bit words
+  #---------------------------------------
+  lint_ghdl_synth_axis_default : &lint_ghdl_synth_axis
+  #---------------------------------------
+    << : *lint_ghdl_synth
+    description     : Synthesis check of jtag_axis, default generics (8-bit words, TX and RX, FIFOs of 4 words)
+    toplevel        : asylum.jtag_axis
+
+  #---------------------------------------
+  lint_ghdl_synth_axis_tx_32b :
+  #---------------------------------------
+    << : *lint_ghdl_synth_axis
+    description     : Synthesis check of jtag_axis, TX only, 32-bit words, TX FIFO of 16 words
+    parameters      :
+      - DATA_WIDTH=32
+      - RX_ENABLE=false
+      - DEPTH_TX=16
+
+  #---------------------------------------
   # Synthesis : size of jtag_wrapper with the generics of the target,
   # Xilinx Artix-7 (LUT, FF, BRAM, DSP) and sky130 (area), by Yosys and
   # its GHDL plugin. Same configurations as lint_ghdl_synth_*.
@@ -256,6 +331,23 @@ targets:
     << : *syn
     description     : Synthesis (Artix-7, sky130) of jtag_bitbang (remote_bitbang JTAG master)
     toplevel        : asylum.jtag_bitbang
+
+  #---------------------------------------
+  syn_axis_default : &syn_axis
+  #---------------------------------------
+    << : *syn
+    description     : Synthesis (Artix-7, sky130) of jtag_axis, default generics (8-bit words, TX and RX, FIFOs of 4 words)
+    toplevel        : asylum.jtag_axis
+
+  #---------------------------------------
+  syn_axis_tx_32b :
+  #---------------------------------------
+    << : *syn_axis
+    description     : Synthesis (Artix-7, sky130) of jtag_axis, TX only, 32-bit words, TX FIFO of 16 words
+    parameters      :
+      - DATA_WIDTH=32
+      - RX_ENABLE=false
+      - DEPTH_TX=16
 
   #---------------------------------------
   # tb_jtag : compiled once per configuration, scenarios chosen at run
@@ -473,6 +565,394 @@ targets:
       - TDR_INOUT_WIDTH=5
 
   #---------------------------------------
+  # tb_jtag_axis : compiled once per configuration, scenarios chosen at
+  # run time (TESTS_LIST, empty : build and elaboration only). Reference
+  # configuration (8-bit words, TX and RX, FIFOs of 4 words, clk 10 ns,
+  # TCK 100 ns unrelated to clk) : sim_axis (build only) and one
+  # sim_axis_<test> target per scenario ; the other configurations run the
+  # scenarios of their directions. Each target repeats the generics of its
+  # configuration. Generated.
+  #---------------------------------------
+  sim_axis: &sim_axis
+    << : *default
+    description     : Simulation of jtag_axis (8-bit words, TX and RX, FIFOs of 4 words, clk 10 ns, TCK 100 ns) - build only (scenarios of TESTS_LIST)
+    filesets_append :
+      - sim_axis
+    toplevel        : tb_jtag_axis
+    parameters      :
+      - TESTS_LIST
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+    default_tool    : ghdl
+    tools :
+      ghdl :
+        analyze_options :
+          - "$(GHDL_ANALYZE_OPTION)"
+          - "-Wall"
+          - "-frelaxed"
+        run_options     :
+          - "$(GHDL_RUN_OPTION)"
+          - "--ieee-asserts=disable"
+
+  #---------------------------------------
+  sim_axis_idcode:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis - IDCODE after the reset and by an IR scan
+    parameters      :
+      - TESTS_LIST=idcode
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_bypass:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis - unclaimed opcodes and the opcode of a disabled direction select BYPASS
+    parameters      :
+      - TESTS_LIST=bypass
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_config:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis - CONFIG after the reset (sizes, enables, flags)
+    parameters      :
+      - TESTS_LIST=config
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_pop:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis - words written on s_axis read in order by TX scans, then empty
+    parameters      :
+      - TESTS_LIST=pop
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_push:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis - words written by RX scans read in order on m_axis
+    parameters      :
+      - TESTS_LIST=push
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_tx_full:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis - TX FIFO full (s_axis_tready_o low, CONFIG), each TX scan frees a place
+    parameters      :
+      - TESTS_LIST=tx_full
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_rx_full:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - RX FIFO full : word refused (accepted bit 0, CONFIG), written again after the reads"
+    parameters      :
+      - TESTS_LIST=rx_full
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_backpressure:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - m_axis_tready_i low : first word held on m_axis, then random ready"
+    parameters      :
+      - TESTS_LIST=backpressure
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_stream:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis - both directions at the same time, random gaps and ready, order kept
+    parameters      :
+      - TESTS_LIST=stream
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_reset:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis - reset pulse empties both FIFOs, words written after it go through
+    parameters      :
+      - TESTS_LIST=reset
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_race:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - a word written (a place freed) by the system after Capture-DR is not taken by Update-DR"
+    parameters      :
+      - TESTS_LIST=race
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_tx_burst:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - TX FIFO filled then drained by back-to-back scans, then words read while s_axis is continuous"
+    parameters      :
+      - TESTS_LIST=tx_burst
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_rx_burst:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - RX FIFO filled by back-to-back scans then read, then words written while m_axis_tready_i is held high"
+    parameters      :
+      - TESTS_LIST=rx_burst
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_duplex_burst:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - both directions at the same time, back-to-back scans, continuous AXI-Stream sides"
+    parameters      :
+      - TESTS_LIST=duplex_burst
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_visibility:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - a system transfer made with TCK stopped is seen by the very next scan (TX word valid, RX place accepted)"
+    parameters      :
+      - TESTS_LIST=visibility
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_trst:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - TRST alone : TAP reset (IDCODE), the words of both FIFOs kept"
+    parameters      :
+      - TESTS_LIST=trst
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_trst_scan:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - TRST in the middle of a scan : no Update-DR, the TX word not removed, the RX word not written"
+    parameters      :
+      - TESTS_LIST=trst_scan
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_reset_scan:
+  #---------------------------------------
+    << : *sim_axis
+    description     : "Simulation of jtag_axis - reset pulse in the middle of a scan : FIFOs emptied, no word delivered, words after it go through"
+    parameters      :
+      - TESTS_LIST=reset_scan
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_tx_only:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis, TX only, 12-bit words, TX FIFO of 8 words, scenarios idcode, bypass, config, pop, tx_full, stream, reset, race, tx_burst, duplex_burst, visibility, trst, trst_scan, reset_scan
+    parameters      :
+      - TESTS_LIST=idcode,bypass,config,pop,tx_full,stream,reset,race,tx_burst,duplex_burst,visibility,trst,trst_scan,reset_scan
+      - DATA_WIDTH=12
+      - TX_ENABLE=true
+      - RX_ENABLE=false
+      - DEPTH_TX=8
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_rx_only:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis, RX only, 5-bit words, RX FIFO of 2 words, scenarios idcode, bypass, config, push, rx_full, backpressure, stream, reset, race, rx_burst, duplex_burst, visibility, trst, trst_scan, reset_scan
+    parameters      :
+      - TESTS_LIST=idcode,bypass,config,push,rx_full,backpressure,stream,reset,race,rx_burst,duplex_burst,visibility,trst,trst_scan,reset_scan
+      - DATA_WIDTH=5
+      - TX_ENABLE=false
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=2
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_fast_tck:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis, 16-bit words, FIFOs of 8 (TX) and 2 (RX) words, TCK of 20 ns faster than clk of 70 ns, scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race, tx_burst, rx_burst, duplex_burst, visibility, trst, trst_scan, reset_scan
+    parameters      :
+      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race,tx_burst,rx_burst,duplex_burst,visibility,trst,trst_scan,reset_scan
+      - DATA_WIDTH=16
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=8
+      - DEPTH_RX=2
+      - CLK_PERIOD=70
+      - TCK_PERIOD=20
+      - TCK_SYNC=false
+
+  #---------------------------------------
+  sim_axis_sync_tck:
+  #---------------------------------------
+    << : *sim_axis
+    description     : Simulation of jtag_axis, reference generics, TCK resynchronized on clk (2 flip-flops, as in PicoSoC), scenarios idcode, bypass, config, pop, push, tx_full, rx_full, backpressure, stream, reset, race, tx_burst, rx_burst, duplex_burst, visibility, trst, trst_scan, reset_scan
+    parameters      :
+      - TESTS_LIST=idcode,bypass,config,pop,push,tx_full,rx_full,backpressure,stream,reset,race,tx_burst,rx_burst,duplex_burst,visibility,trst,trst_scan,reset_scan
+      - DATA_WIDTH=8
+      - TX_ENABLE=true
+      - RX_ENABLE=true
+      - DEPTH_TX=4
+      - DEPTH_RX=4
+      - CLK_PERIOD=10
+      - TCK_PERIOD=100
+      - TCK_SYNC=true
+
+  #---------------------------------------
   # tb_pad_mux : reference configuration (3 functions on 4 pads, the use
   # of PicoSoC) : sim_pad_mux (build only) and one sim_pad_mux_<test>
   # target per scenario ; sim_pad_mux_5x2 (5 functions on 2 pads) runs
@@ -662,6 +1142,33 @@ targets:
       pre_run       : [cosim_start]
       post_run      : [cosim_check]
 
+  #---------------------------------------
+  # Co-simulation : OpenOCD 0.12 (remote_bitbang adapter, TCP) drives
+  # jtag_bitbang and jtag_axis (RX looped back to TX) with the procedures
+  # of tools/openocd/jtag_axis.tcl ; checks of sim/openocd/axis.cfg
+  #---------------------------------------
+  sim_openocd_axis:
+  #---------------------------------------
+    << : *default
+    description     : Co-simulation of jtag_axis with OpenOCD (remote_bitbang over TCP) - jtag_axis_config, jtag_axis_push, jtag_axis_pop through a loop RX to TX, bursts
+    filesets_append :
+      - sim_openocd_axis
+    toplevel        : tb_axis_openocd
+    default_tool    : ghdl
+    tools :
+      ghdl :
+        analyze_options :
+          - "$(GHDL_ANALYZE_OPTION)"
+          - "-Wall"
+          - "-frelaxed"
+        run_options     :
+          - "$(GHDL_RUN_OPTION)"
+          - "--ieee-asserts=disable"
+    hooks :
+      pre_build     : [cosim_build]
+      pre_run       : [cosim_start_axis]
+      post_run      : [cosim_check]
+
 #=========================================
 scripts:
 #=========================================
@@ -688,6 +1195,9 @@ scripts:
 
   cosim_start :
     cmd : [bash, rbb/cosim.sh, start, openocd/jtag.cfg]
+
+  cosim_start_axis :
+    cmd : [bash, rbb/cosim.sh, start, openocd/axis.cfg]
 
   cosim_check :
     cmd : [bash, rbb/cosim.sh, check]
@@ -732,6 +1242,58 @@ parameters :
     description : Width of the jtag_tdr_inout register
     datatype    : int
     default     : 8
+    paramtype   : generic
+
+  #---------------------------------------
+  # Generics of jtag_axis (lint_ghdl_synth_axis_*, syn_axis_*) and of
+  # tb_jtag_axis (sim_axis*)
+  #---------------------------------------
+  DATA_WIDTH :
+    description : Width of the words of jtag_axis
+    datatype    : int
+    default     : 8
+    paramtype   : generic
+
+  TX_ENABLE :
+    description : true, jtag_axis has the TX direction (system to JTAG)
+    datatype    : bool
+    default     : true
+    paramtype   : generic
+
+  RX_ENABLE :
+    description : true, jtag_axis has the RX direction (JTAG to system)
+    datatype    : bool
+    default     : true
+    paramtype   : generic
+
+  DEPTH_TX :
+    description : Number of words of the TX FIFO of jtag_axis (power of 2)
+    datatype    : int
+    default     : 4
+    paramtype   : generic
+
+  DEPTH_RX :
+    description : Number of words of the RX FIFO of jtag_axis (power of 2)
+    datatype    : int
+    default     : 4
+    paramtype   : generic
+
+  CLK_PERIOD :
+    description : Period of clk in tb_jtag_axis, ns
+    datatype    : int
+    default     : 10
+    paramtype   : generic
+
+  TCK_PERIOD :
+    description : Period of TCK in tb_jtag_axis, ns
+    datatype    : int
+    default     : 100
+    paramtype   : generic
+
+  TCK_SYNC :
+    description : true, tb_jtag_axis resynchronizes TCK on clk (2 flip-flops)
+    datatype    : bool
+    default     : false
     paramtype   : generic
 
   #---------------------------------------
